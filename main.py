@@ -66,7 +66,7 @@ def main():
     
     # Setup edit conversation handler
     edit_conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(edit_handlers.edit_reminder_start, pattern='^edit_\d+$')],
+        entry_points=[CallbackQueryHandler(edit_handlers.edit_reminder_start, pattern=r'^edit_\d+$')],
         states={
             ConversationState.EDIT_SELECT_FIELD.value: [
                 CallbackQueryHandler(edit_handlers.edit_select_field, pattern='^edit_')
