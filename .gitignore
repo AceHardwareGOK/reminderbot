@@ -11,8 +11,10 @@ ENV/
 *.db
 *.sqlite3
 
-# Configuration
+# Configuration (токени не комітимо)
 .env
+.env.*
+!.env.example
 
 # IDEs
 .cursor/
