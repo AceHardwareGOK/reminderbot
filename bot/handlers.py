@@ -57,6 +57,24 @@ class BotHandlers:
         )
         return ConversationHandler.END
 
+    async def debug_time(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show server time debug info"""
+        if not update.message:
+            return
+            
+        server_now = datetime.now()
+        utc_now = datetime.now(ZoneInfo("UTC"))
+        tz_now = datetime.now(TZ)
+        
+        await update.message.reply_text(
+            f"🕒 *Час на сервері*\n\n"
+            f"📅 *Server Local:* `{server_now}`\n"
+            f"🌍 *UTC:* `{utc_now}`\n"
+            f"🇺🇦 *Configured ({TIMEZONE}):* `{tz_now}`\n"
+            f"ℹ️ *ZoneInfo:* `{TZ}`",
+            parse_mode='Markdown'
+        )
+
     # ==================== CREATE REMINDER FLOW ====================
     
     async def create_reminder_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
