@@ -6,7 +6,11 @@ from core.scheduler import DayOfWeek
 from .states import ConversationState
 from .keyboards import CANCEL_MARKUP, MAIN_MARKUP
 
+from zoneinfo import ZoneInfo
+from core.config import TIMEZONE
+
 logger = logging.getLogger(__name__)
+TZ = ZoneInfo(TIMEZONE)
 
 class EditHandlers:
     """Handlers for editing reminders"""
@@ -214,7 +218,7 @@ class EditHandlers:
         if text == 'не повторювати':
             # Show options for one-time reminder: day of week or specific date
             from datetime import datetime
-            now = datetime.now()
+            now = datetime.now(TZ)
             current_day = now.weekday()
             
             # Get next occurrence of each day of week

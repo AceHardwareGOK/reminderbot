@@ -145,7 +145,7 @@ class BotHandlers:
             context.user_data['is_one_time'] = True
             
             # Show options for one-time reminder: day of week or specific date
-            now = datetime.now()
+            now = datetime.now(TZ)
             current_day = now.weekday()
             
             # Get next occurrence of each day of week
@@ -306,7 +306,7 @@ class BotHandlers:
                     # Format: DD.MM.YYYY (only date)
                     target_date = datetime.strptime(text, '%d.%m.%Y')
                     # Check if date is in the past
-                    if target_date.date() < datetime.now().date():
+                    if target_date.date() < datetime.now(TZ).date():
                         await update.message.reply_text(
                             "⚠️ Дата не може бути в минулому. Введи дату ще раз:",
                             reply_markup=CANCEL_MARKUP

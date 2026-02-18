@@ -139,9 +139,10 @@ class ReminderManager:
                     target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
                     time_str = times[0]
                     hour, minute = map(int, time_str.split(':'))
-                    target_datetime = target_date.replace(hour=hour, minute=minute)
+                    target_datetime = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
                 else:  # YYYY-MM-DD HH:MM
                     target_datetime = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
+                    target_datetime = target_datetime.replace(tzinfo=TZ)
                     time_str = target_datetime.strftime('%H:%M')
                 
                 if target_datetime <= now:
@@ -231,7 +232,7 @@ class ReminderManager:
                 
                 self.scheduler.add_job(
                     func=self._send_reminder_async,
-                    trigger=CronTrigger(day_of_week=day.cron, hour=hour, minute=minute),
+                    trigger=CronTrigger(day_of_week=day.cron, hour=hour, minute=minute, timezone=TZ),
                     id=job_id,
                     args=[user_id, task, time_str],
                     replace_existing=True,
