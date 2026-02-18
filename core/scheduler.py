@@ -133,7 +133,7 @@ class ReminderManager:
         
         now = datetime.now(TZ)
         
-                if one_time_date:
+        if one_time_date:
             try:
                 if len(one_time_date) == 10:  # YYYY-MM-DD
                     target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
