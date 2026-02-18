@@ -7,3 +7,6 @@ load_dotenv(ENV_FILE)
 
 DB_PATH = os.getenv("DB_PATH", "reminders.db")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# Bot timezone (IANA name), e.g. "Europe/Kyiv", "Europe/Warsaw"
+TIMEZONE = os.getenv("TIMEZONE", "Europe/Kyiv")

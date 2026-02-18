@@ -3,9 +3,11 @@ import logging
 from typing import List, Dict, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
-from .config import DB_PATH
+from zoneinfo import ZoneInfo
+from .config import DB_PATH, TIMEZONE
 
 logger = logging.getLogger(__name__)
+TZ = ZoneInfo(TIMEZONE)
 
 class DatabaseManager:
     """Async database manager using aiosqlite"""
@@ -174,7 +176,7 @@ class DatabaseManager:
             if not completed_at:
                 return True 
 
-            now = datetime.now()
+            now = datetime.now(TZ)
             today = now.date()
             completion_date = completed_at.date()
             

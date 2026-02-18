@@ -3,15 +3,18 @@ import logging
 import threading
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application
 
+from .config import TIMEZONE
 from .database import DatabaseManager
 
 logger = logging.getLogger(__name__)
+TZ = ZoneInfo(TIMEZONE)
 
 class DayOfWeek:
     """Days of the week mapping"""
@@ -61,7 +64,7 @@ class ReminderManager:
     def __init__(self, db: DatabaseManager):
         self.db = db
         self.scheduler = AsyncIOScheduler(
-            timezone='Europe/Kyiv',
+            timezone=TZ,
             job_defaults={
                 'misfire_grace_time': 300,
                 'coalesce': True,
@@ -128,9 +131,9 @@ class ReminderManager:
         times = task['times']
         one_time_date = task.get('one_time_date')
         
-        now = datetime.now()
+        now = datetime.now(TZ)
         
-        if one_time_date:
+                if one_time_date:
             try:
                 if len(one_time_date) == 10:  # YYYY-MM-DD
                     target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
@@ -213,7 +216,7 @@ class ReminderManager:
         days = task['days']
         times = task['times']
         
-        now = datetime.now()
+        now = datetime.now(TZ)
         current_day_index = now.weekday()
         
         for day_index in days:
@@ -265,7 +268,7 @@ class ReminderManager:
             if await self.db.is_reminder_completed(user_id, task['task_id'], reminder_instance_id):
                 return
             
-            now = datetime.now()
+            now = datetime.now(TZ)
             hour, minute = map(int, reminder_time.split(':'))
             scheduled_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             time_diff = abs((now - scheduled_time).total_seconds())
