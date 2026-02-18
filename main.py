@@ -118,7 +118,19 @@ def main():
     # Register handlers
     application.add_handler(CommandHandler("start", handlers.start))
     application.add_handler(MessageHandler(filters.Regex('^📋 Мої нагадування$'), handlers.view_reminders))
+    application.add_handler(MessageHandler(filters.Regex('^⏸ Відкласти всі нагадування$'), handlers.snooze_all_start))
     application.add_handler(MessageHandler(filters.Regex('^🗑 Видалити нагадування$'), handlers.delete_reminder_start))
+
+    # Global handler for snooze text input.
+    # Placed in a lower-priority group so it doesn't block
+    # the main conversation handlers (create/edit flows).
+    application.add_handler(
+        MessageHandler(
+            filters.TEXT & ~filters.COMMAND,
+            handlers.handle_snooze_text,
+        ),
+        group=1,
+    )
     
     # Register edit handler BEFORE generic button handler
     application.add_handler(edit_conv_handler)

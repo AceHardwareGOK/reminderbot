@@ -263,21 +263,53 @@ class ReminderManager:
             
             if current_task.get('is_completed'):
                 return
-            
+
             reminder_instance_id = f"{task['task_id']}_{reminder_time.replace(':', '')}"
             if await self.db.is_reminder_completed(user_id, task['task_id'], reminder_instance_id):
                 return
-            
+
             now = datetime.now(TZ)
-            hour, minute = map(int, reminder_time.split(':'))
-            scheduled_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            time_diff = abs((now - scheduled_time).total_seconds())
-            is_scheduled_reminder = time_diff < 300
-            
-            if is_scheduled_reminder:
+            skip_send = False
+
+            # Check per-reminder snooze
+            snoozed_until = await self.db.get_reminder_snooze(
+                user_id, task['task_id'], reminder_instance_id
+            )
+            if snoozed_until:
+                if now < snoozed_until:
+                    logger.info(
+                        f"Reminder {task['task_id']} for user {user_id} "
+                        f"is snoozed until {snoozed_until}, skipping send (but keeping repeats)"
+                    )
+                    skip_send = True
+                else:
+                    # Snooze expired – clear record and continue as normal
+                    await self.db.clear_reminder_snooze(
+                        user_id, task['task_id'], reminder_instance_id
+                    )
+
+            # Check global user-level snooze (affects all reminders)
+            user_snoozed_until = await self.db.get_user_snooze(user_id)
+            if user_snoozed_until:
+                if now < user_snoozed_until:
+                    logger.info(
+                        f"All reminders for user {user_id} "
+                        f"are snoozed until {user_snoozed_until}, skipping send (but keeping repeats)"
+                    )
+                    skip_send = True
+                else:
+                    await self.db.clear_user_snooze(user_id)
+
+            # If this is the initial scheduled run (from APScheduler),
+            # cancel any stale repeat tasks; for follow-up repeats we
+            # keep the chain alive.
+            with self._lock:
+                has_repeat_tasks = reminder_instance_id in self.active_repeat_tasks
+            if not has_repeat_tasks:
                 self._cancel_repeat_tasks(reminder_instance_id)
             
-            await self._send_reminder_message(user_id, task, reminder_time)
+            if not skip_send:
+                await self._send_reminder_message(user_id, task, reminder_time)
             
             if not await self.db.is_reminder_completed(user_id, task['task_id'], reminder_instance_id):
                 await self._schedule_next_reminder(user_id, task, reminder_time, reminder_instance_id)
@@ -290,10 +322,17 @@ class ReminderManager:
         if not self.application:
             return
         
+        reminder_code = reminder_time.replace(':', '')
         keyboard = [[
             InlineKeyboardButton(
                 "✅ Готово", 
-                callback_data=f"done_{task['task_id']}_{reminder_time.replace(':', '')}"
+                callback_data=f"done_{task['task_id']}_{reminder_code}",
+                api_kwargs={'style': 'success'}
+            ),
+            InlineKeyboardButton(
+                "⏰ Відкласти",
+                callback_data=f"snooze_{task['task_id']}_{reminder_code}",
+                api_kwargs={'style': 'primary'}
             )
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)

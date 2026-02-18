@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 
+from core.config import TIMEZONE
 from core.database import DatabaseManager
 from core.scheduler import ReminderManager, DayOfWeek
 from utils.validators import Validator
@@ -10,6 +12,7 @@ from .states import ConversationState
 from .keyboards import MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD
 
 logger = logging.getLogger(__name__)
+TZ = ZoneInfo(TIMEZONE)
 
 class BotHandlers:
     """Container for bot command and conversation handlers"""
@@ -513,6 +516,27 @@ class BotHandlers:
             reply_markup=MAIN_MARKUP
         )
 
+    # ==================== SNOOZE ALL ====================
+
+    async def snooze_all_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Ask user for how long to snooze all reminders."""
+        if not update.message or not update.effective_user:
+            return
+
+        context.user_data['snooze_all_pending'] = True
+
+        keyboard = [
+            ['30 хвилин', '1 година'],
+            ['Власний інтервал'],
+            ['🏠 Скасувати'],
+        ]
+
+        await update.message.reply_text(
+            "⏸ На скільки часу відкласти *всі* нагадування?",
+            parse_mode='Markdown',
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+        )
+
     async def _send_task_message(self, update: Update, task: dict):
         """Send formatted task message"""
         one_time_date = task.get('one_time_date')
@@ -533,8 +557,8 @@ class BotHandlers:
         
         keyboard = [
             [
-                InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task['task_id']}"),
-                InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task['task_id']}")
+                InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task['task_id']}", api_kwargs={'style': 'primary'}),
+                InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task['task_id']}", api_kwargs={'style': 'danger'})
             ]
         ]
         
@@ -571,7 +595,7 @@ class BotHandlers:
             return
         
         for task in tasks:
-            keyboard = [[InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task['task_id']}")]]
+            keyboard = [[InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task['task_id']}", api_kwargs={'style': 'danger'})]]
             
             one_time_date = task.get('one_time_date')
             if one_time_date:
@@ -618,6 +642,10 @@ class BotHandlers:
                 await self._handle_delete(query, data)
             elif data.startswith('done_'):
                 await self._handle_done(query, data)
+            elif data.startswith('snooze_'):
+                await self._handle_snooze_single(query, data, context)
+            elif data.startswith('snoozeopt_'):
+                await self._handle_snooze_option(query, data, context)
             # edit_ is ignored here so it falls through to the ConversationHandler
             # actually, if we register CallbackQueryHandler here, it might consume it?
             # In PTB, if a handler handles the update, it stops propagation unless group is different.
@@ -704,4 +732,208 @@ class BotHandlers:
         else:
             await query.edit_message_text(
                 f"✅ Нагадування '{task['description']}' о {time_display} позначено як виконане!"
+            )
+
+    # ==================== SNOOZE HANDLERS ====================
+
+    async def _handle_snooze_single(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
+        """Start snooze flow for a single reminder instance."""
+        try:
+            parts = data.split('_')
+            task_id = int(parts[1])
+            time_part = '_'.join(parts[2:])
+        except (IndexError, ValueError):
+            await query.answer("❌ Неправильний формат даних.", show_alert=True)
+            return
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "30 хвилин",
+                    callback_data=f"snoozeopt_{task_id}_{time_part}_30",
+                ),
+                InlineKeyboardButton(
+                    "1 година",
+                    callback_data=f"snoozeopt_{task_id}_{time_part}_60",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    "⏱️ Власний інтервал",
+                    callback_data=f"snoozeopt_{task_id}_{time_part}_custom",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔙 Скасувати",
+                    callback_data=f"snoozeopt_{task_id}_{time_part}_cancel",
+                )
+            ],
+        ]
+
+        await query.answer()
+        await query.message.reply_text(
+            "⏸ На скільки відкласти це нагадування?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _handle_snooze_option(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
+        """Handle choice of snooze duration for a single reminder."""
+        try:
+            parts = data.split('_')
+            task_id = int(parts[1])
+            time_part = parts[2]
+            option = parts[3]
+        except (IndexError, ValueError):
+            await query.answer("❌ Неправильний формат даних.", show_alert=True)
+            return
+
+        if option == 'cancel':
+            await query.answer("Відкладення скасовано.")
+            return
+
+        if option == 'custom':
+            # Ask user for custom interval in minutes via normal message
+            context.user_data['snooze_custom_single'] = {
+                'task_id': task_id,
+                'time_part': time_part,
+            }
+            await query.answer()
+            await query.message.reply_text(
+                "⏱️ Введи інтервал у хвилинах (1–1440), на який відкласти це нагадування:",
+            )
+            return
+
+        # Fixed option in minutes
+        try:
+            minutes = int(option)
+        except ValueError:
+            await query.answer("❌ Невідомий інтервал.", show_alert=True)
+            return
+
+        if not query.from_user:
+            return
+
+        user_id = query.from_user.id
+        await self._apply_snooze_single(user_id, task_id, time_part, minutes)
+        await query.answer()
+        await query.message.reply_text(
+            f"⏸ Нагадування відкладено на {minutes} хвилин.",
+            reply_markup=MAIN_MARKUP,
+        )
+
+    async def _apply_snooze_single(
+        self,
+        user_id: int,
+        task_id: int,
+        time_part: str,
+        minutes: int,
+    ) -> None:
+        """Persist snooze for a single reminder instance."""
+        task = await self.db.get_task(task_id)
+        if not task:
+            return
+
+        reminder_instance_id = f"{task_id}_{time_part}"
+        now = datetime.now(TZ)
+        snoozed_until = now + timedelta(minutes=minutes)
+
+        await self.db.set_reminder_snooze(
+            user_id=user_id,
+            task_id=task_id,
+            reminder_instance_id=reminder_instance_id,
+            snoozed_until=snoozed_until,
+        )
+
+    async def handle_snooze_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle text input for custom snooze intervals and 'snooze all' flow."""
+        if not update.message or not update.message.text or not update.effective_user:
+            return
+
+        text = update.message.text.strip()
+        user_id = update.effective_user.id
+
+        # Custom single reminder snooze
+        if 'snooze_custom_single' in context.user_data:
+            data = context.user_data.pop('snooze_custom_single', None)
+            if not data:
+                return
+
+            if text == '🏠 Скасувати':
+                await update.message.reply_text(
+                    "⏸ Відкладення скасовано.",
+                    reply_markup=MAIN_MARKUP,
+                )
+                return
+
+            try:
+                minutes = int(text)
+            except ValueError:
+                await update.message.reply_text(
+                    "⚠️ Будь ласка, введи число хвилин (1–1440) або '🏠 Скасувати'.",
+                )
+                # Keep state so user can try again
+                context.user_data['snooze_custom_single'] = data
+                return
+
+            if not self.validator.validate_interval(minutes):
+                await update.message.reply_text(
+                    "⚠️ Інтервал має бути від 1 до 1440 хвилин. Спробуй ще раз:",
+                )
+                context.user_data['snooze_custom_single'] = data
+                return
+
+            await self._apply_snooze_single(
+                user_id=user_id,
+                task_id=data['task_id'],
+                time_part=data['time_part'],
+                minutes=minutes,
+            )
+            await update.message.reply_text(
+                f"⏸ Нагадування відкладено на {minutes} хвилин.",
+                reply_markup=MAIN_MARKUP,
+            )
+            return
+
+        # Snooze all reminders flow
+        if context.user_data.get('snooze_all_pending'):
+            if text == '🏠 Скасувати':
+                context.user_data.pop('snooze_all_pending', None)
+                await update.message.reply_text(
+                    "⏸ Відкладення всіх нагадувань скасовано.",
+                    reply_markup=MAIN_MARKUP,
+                )
+                return
+
+            interval_map = {
+                '30 хвилин': 30,
+                '1 година': 60,
+            }
+
+            minutes = interval_map.get(text)
+            if minutes is None:
+                # Treat as custom minutes
+                try:
+                    minutes = int(text)
+                except ValueError:
+                    await update.message.reply_text(
+                        "⚠️ Введи інтервал у хвилинах (1–1440) або обери варіант з клавіатури.",
+                    )
+                    return
+
+            if not self.validator.validate_interval(minutes):
+                await update.message.reply_text(
+                    "⚠️ Інтервал має бути від 1 до 1440 хвилин. Спробуй ще раз:",
+                )
+                return
+
+            now = datetime.now(TZ)
+            snoozed_until = now + timedelta(minutes=minutes)
+            await self.db.set_user_snooze(user_id, snoozed_until)
+
+            context.user_data.pop('snooze_all_pending', None)
+
+            await update.message.reply_text(
+                f"⏸ Усі нагадування відкладено на {minutes} хвилин.",
+                reply_markup=MAIN_MARKUP,
             )

@@ -66,6 +66,20 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_completed_user_task 
                 ON completed_reminders(user_id, task_id)
             ''')
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS snoozed_reminders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    task_id INTEGER NOT NULL,
+                    reminder_instance_id TEXT NOT NULL,
+                    snoozed_until TIMESTAMP NOT NULL,
+                    UNIQUE(user_id, task_id, reminder_instance_id)
+                )
+            ''')
+            await conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_snoozed_user_task 
+                ON snoozed_reminders(user_id, task_id, reminder_instance_id)
+            ''')
             
             await conn.commit()
 
@@ -270,3 +284,118 @@ class DatabaseManager:
                     return datetime.strptime(date_str, '%Y-%m-%d')
                 except ValueError:
                     return None
+
+    # ========== SNOOZE SUPPORT ==========
+
+    async def set_reminder_snooze(
+        self,
+        user_id: int,
+        task_id: int,
+        reminder_instance_id: str,
+        snoozed_until: datetime,
+    ) -> None:
+        """Set or update snooze for a specific reminder instance."""
+        async with self._get_connection() as conn:
+            # Store as ISO string (with timezone if present)
+            value = snoozed_until.isoformat()
+            try:
+                await conn.execute(
+                    '''
+                    INSERT INTO snoozed_reminders (user_id, task_id, reminder_instance_id, snoozed_until)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(user_id, task_id, reminder_instance_id)
+                    DO UPDATE SET snoozed_until = excluded.snoozed_until
+                    ''',
+                    (user_id, task_id, reminder_instance_id, value),
+                )
+            except aiosqlite.OperationalError:
+                # Fallback for SQLite versions without ON CONFLICT support
+                await conn.execute(
+                    '''
+                    DELETE FROM snoozed_reminders
+                    WHERE user_id = ? AND task_id = ? AND reminder_instance_id = ?
+                    ''',
+                    (user_id, task_id, reminder_instance_id),
+                )
+                await conn.execute(
+                    '''
+                    INSERT INTO snoozed_reminders (user_id, task_id, reminder_instance_id, snoozed_until)
+                    VALUES (?, ?, ?, ?)
+                    ''',
+                    (user_id, task_id, reminder_instance_id, value),
+                )
+            await conn.commit()
+
+    async def get_reminder_snooze(
+        self,
+        user_id: int,
+        task_id: int,
+        reminder_instance_id: str,
+    ) -> Optional[datetime]:
+        """Get snooze time for a specific reminder instance, if any."""
+        async with self._get_connection() as conn:
+            cursor = await conn.execute(
+                '''
+                SELECT snoozed_until FROM snoozed_reminders
+                WHERE user_id = ? AND task_id = ? AND reminder_instance_id = ?
+                ''',
+                (user_id, task_id, reminder_instance_id),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return self._parse_date(row['snoozed_until'])
+
+    async def clear_reminder_snooze(
+        self,
+        user_id: int,
+        task_id: int,
+        reminder_instance_id: str,
+    ) -> None:
+        """Clear snooze for a specific reminder instance."""
+        async with self._get_connection() as conn:
+            await conn.execute(
+                '''
+                DELETE FROM snoozed_reminders
+                WHERE user_id = ? AND task_id = ? AND reminder_instance_id = ?
+                ''',
+                (user_id, task_id, reminder_instance_id),
+            )
+            await conn.commit()
+
+    async def set_user_snooze(self, user_id: int, snoozed_until: datetime) -> None:
+        """Set or update global snooze for all reminders of a user."""
+        # Use task_id = 0 and reminder_instance_id='*' as a convention for global snooze
+        await self.set_reminder_snooze(
+            user_id=user_id,
+            task_id=0,
+            reminder_instance_id='*',
+            snoozed_until=snoozed_until,
+        )
+
+    async def get_user_snooze(self, user_id: int) -> Optional[datetime]:
+        """Get global snooze for user, if any."""
+        async with self._get_connection() as conn:
+            cursor = await conn.execute(
+                '''
+                SELECT snoozed_until FROM snoozed_reminders
+                WHERE user_id = ? AND task_id = 0 AND reminder_instance_id = '*'
+                ''',
+                (user_id,),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return self._parse_date(row['snoozed_until'])
+
+    async def clear_user_snooze(self, user_id: int) -> None:
+        """Clear global snooze for user."""
+        async with self._get_connection() as conn:
+            await conn.execute(
+                '''
+                DELETE FROM snoozed_reminders
+                WHERE user_id = ? AND task_id = 0 AND reminder_instance_id = '*'
+                ''',
+                (user_id,),
+            )
+            await conn.commit()

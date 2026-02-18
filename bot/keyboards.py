@@ -3,8 +3,8 @@ from telegram import ReplyKeyboardMarkup
 # Keyboard layouts
 MAIN_KEYBOARD = [
     ['➕ Створити нагадування'],
-    ['📋 Мої нагадування'],
-    ['🗑 Видалити нагадування']
+    ['📋 Мої нагадування', '⏸ Відкласти всі нагадування'],
+    ['🗑 Видалити нагадування'],
 ]
 MAIN_MARKUP = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True)
 
