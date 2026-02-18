@@ -154,7 +154,7 @@ class ReminderManager:
                 job_id = f"reminder_{user_id}_{task_id}_date_{time_str.replace(':', '')}"
                 self.scheduler.add_job(
                     func=self._send_reminder_async,
-                    trigger=DateTrigger(run_date=target_datetime),
+                    trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
                     id=job_id,
                     args=[user_id, task, time_str],
                     replace_existing=True,
@@ -199,7 +199,7 @@ class ReminderManager:
                 
                 self.scheduler.add_job(
                     func=self._send_reminder_async,
-                    trigger=DateTrigger(run_date=target_datetime),
+                    trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
                     id=job_id,
                     args=[user_id, task, time_str],
                     replace_existing=True,
