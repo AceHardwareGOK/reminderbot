@@ -75,6 +75,42 @@ class BotHandlers:
             parse_mode='Markdown'
         )
 
+    async def refresh_scheduler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Force reschedule all tasks from DB"""
+        if not update.message or not update.effective_user:
+            return
+            
+        try:
+            # Get all active tasks
+            # We need to access db directly or add method to manager?
+            # Manager doesn't have method to get all tasks, db does.
+            # But we want ALL tasks for ALL users to fix system-wide issue?
+            # Or just for current user? Let's do current user first to be safe, 
+            # but usually refresh is admin command. Given context, user is likely admin/sole user.
+            
+            user_id = update.effective_user.id
+            
+            # Re-fetch tasks
+            tasks = await self.db.get_user_tasks(user_id)
+            
+            count = 0
+            for task in tasks:
+                # Cancel existing
+                self.reminder_manager.cancel_task(user_id, task['task_id'])
+                # Schedule new
+                self.reminder_manager.schedule_task(task)
+                count += 1
+                
+            await update.message.reply_text(
+                f"✅ Оновлено планувальник.\n"
+                f"Перезаплановано завдань: {count}\n\n"
+                f"Тепер вони мають використовувати коректний часовий пояс."
+            )
+            
+        except Exception as e:
+            logger.error(f"Error refreshing scheduler: {e}")
+            await update.message.reply_text("❌ Помилка оновлення.")
+
     # ==================== CREATE REMINDER FLOW ====================
     
     async def create_reminder_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -118,6 +118,7 @@ def main():
     # Register handlers
     application.add_handler(CommandHandler("start", handlers.start))
     application.add_handler(CommandHandler("debug_time", handlers.debug_time))
+    application.add_handler(CommandHandler("refresh", handlers.refresh_scheduler))
     application.add_handler(MessageHandler(filters.Regex('^📋 Мої нагадування$'), handlers.view_reminders))
     application.add_handler(MessageHandler(filters.Regex('^⏸ Відкласти всі нагадування$'), handlers.snooze_all_start))
     application.add_handler(MessageHandler(filters.Regex('^🗑 Видалити нагадування$'), handlers.delete_reminder_start))
