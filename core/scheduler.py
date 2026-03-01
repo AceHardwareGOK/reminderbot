@@ -312,7 +312,7 @@ class ReminderManager:
             if not skip_send:
                 await self._send_reminder_message(user_id, task, reminder_time)
             
-            if not await self.db.is_reminder_completed(user_id, task['task_id'], reminder_instance_id):
+            if task['interval_minutes'] > 0 and not await self.db.is_reminder_completed(user_id, task['task_id'], reminder_instance_id):
                 await self._schedule_next_reminder(user_id, task, reminder_time, reminder_instance_id)
         
         except Exception as e:
@@ -324,18 +324,25 @@ class ReminderManager:
             return
         
         reminder_code = reminder_time.replace(':', '')
-        keyboard = [[
+        
+        buttons = [
             InlineKeyboardButton(
                 "✅ Готово", 
                 callback_data=f"done_{task['task_id']}_{reminder_code}",
                 api_kwargs={'style': 'success'}
-            ),
-            InlineKeyboardButton(
-                "⏰ Відкласти",
-                callback_data=f"snooze_{task['task_id']}_{reminder_code}",
-                api_kwargs={'style': 'primary'}
             )
-        ]]
+        ]
+        
+        if task['interval_minutes'] > 0:
+            buttons.append(
+                InlineKeyboardButton(
+                    "⏰ Відкласти",
+                    callback_data=f"snooze_{task['task_id']}_{reminder_code}",
+                    api_kwargs={'style': 'primary'}
+                )
+            )
+            
+        keyboard = [buttons]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         message_text = (

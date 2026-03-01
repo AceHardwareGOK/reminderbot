@@ -151,7 +151,7 @@ class BotHandlers:
             ['пн', 'вт', 'ср'],
             ['чт', 'пт', 'сб'],
             ['нд'],
-            ['щодня', 'не повторювати'],
+            ['щодня', 'одноразове'],
             ['✅ Підтвердити', '🏠 Скасувати']
         ]
         
@@ -159,7 +159,7 @@ class BotHandlers:
             "📅 Обери дні для нагадувань:\n"
             "• Натискай на кнопки днів, щоб обрати/скасувати їх\n"
             "• Натисни 'щодня' для щоденних нагадувань\n"
-            "• Натисни 'не повторювати' для одноразового нагадування\n"
+            "• Натисни 'одноразове' для одноразового нагадування\n"
             "• Натисни '✅ Підтвердити', коли закінчиш",
             reply_markup=ReplyKeyboardMarkup(days_keyboard, resize_keyboard=True)
         )
@@ -177,7 +177,7 @@ class BotHandlers:
             return await self.cancel(update, context)
         
         # Handle one-time task
-        if text == 'не повторювати':
+        if text == 'одноразове':
             context.user_data['is_one_time'] = True
             
             # Show options for one-time reminder: day of week or specific date
@@ -325,6 +325,7 @@ class BotHandlers:
                     
                     # Go directly to interval selection
                     interval_keyboard = [
+                        ['не повторювати'],
                         ['5 хвилин', '10 хвилин'],
                         ['15 хвилин', '30 хвилин'],
                         ['1 година', '2 години'],
@@ -420,6 +421,7 @@ class BotHandlers:
         context.user_data['times'] = valid_times
         
         interval_keyboard = [
+            ['не повторювати'],
             ['5 хвилин', '10 хвилин'],
             ['15 хвилин', '30 хвилин'],
             ['1 година', '2 години'],
@@ -445,7 +447,7 @@ class BotHandlers:
         
         if text == 'Власний інтервал':
             await update.message.reply_text(
-                "⏱️ Введи інтервал у хвилинах (1-1440):",
+                "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30):",
                 reply_markup=CANCEL_MARKUP
             )
             return ConversationState.CHOOSING_INTERVAL.value
@@ -456,17 +458,20 @@ class BotHandlers:
             '30 хвилин': 30, '1 година': 60, '2 години': 120
         }
         
-        interval_minutes = interval_map.get(text)
-        
-        if interval_minutes is None:
-            try:
-                interval_minutes = int(text)
-            except ValueError:
-                await update.message.reply_text(
-                    "⚠️ Будь ласка, введи правильне число.",
-                    reply_markup=CANCEL_MARKUP
-                )
-                return ConversationState.CHOOSING_INTERVAL.value
+        # Handle interval
+        if text == 'не повторювати':
+            interval_minutes = 0
+        else:
+            interval_minutes = interval_map.get(text)
+            
+            if interval_minutes is None:
+                interval_minutes = self.validator.parse_interval(text)
+                if interval_minutes is None:
+                    await update.message.reply_text(
+                        "⚠️ Будь ласка, введи інтервал (наприклад 90 або 1:30).",
+                        reply_markup=CANCEL_MARKUP
+                    )
+                    return ConversationState.CHOOSING_INTERVAL.value
         
         if not self.validator.validate_interval(interval_minutes):
             await update.message.reply_text(
@@ -492,42 +497,11 @@ class BotHandlers:
             if task:
                 self.reminder_manager.schedule_task(task)
             
-            # Format confirmation message
-            if one_time_date:
-                try:
-                    if len(one_time_date) > 10:
-                        date_dt = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
-                        date_str = date_dt.strftime('%d.%m.%Y %H:%M')
-                    else:
-                        date_dt = datetime.strptime(one_time_date, '%Y-%m-%d')
-                        date_str = date_dt.strftime('%d.%m.%Y')
-                    days_str = f"Дата: {date_str}"
-                except ValueError:
-                    days_str = f"Дата: {one_time_date}"
-            else:
-                days_str = ', '.join([DayOfWeek.from_index(d).full for d in days]) if days else 'Не вказано'
-            
-            times_str = ', '.join(times)
-            
-            if interval_minutes < 60:
-                interval_str = f"{interval_minutes} хвилин"
-            else:
-                hours = interval_minutes // 60
-                interval_str = f"{hours} {'година' if hours == 1 else 'години'}"
-            
-            task_type = "одноразове" if is_one_time else "повторюване"
-            
             await update.message.reply_text(
-                f"✅ Нагадування успішно створено!\n\n"
-                f"*Тип:* {task_type}\n"
-                f"*Завдання:* {description}\n"
-                f"*{'Дата' if one_time_date else 'Дні'}:* {days_str}\n"
-                f"*Часи:* {times_str}\n"
-                f"*Інтервал:* {interval_str}\n\n"
-                f"{'Після виконання завдання буде автоматично видалено.' if is_one_time else 'Використовуй меню для управління нагадуваннями.'}",
-                parse_mode='Markdown',
+                "✅ Нагадування успішно створено!",
                 reply_markup=MAIN_MARKUP
             )
+            await self._send_task_message(update, task)
         
         except Exception as e:
             logger.error(f"Error creating task: {e}")
@@ -621,7 +595,7 @@ class BotHandlers:
             f"🏷️ *Тип:* {task_type}\n"
             f"📅 *Дні:* {days_str}\n"
             f"⏰ *Часи:* {times_str}\n"
-            f"⏱️ *Інтервал:* {task['interval_minutes']} хвилин"
+            f"⏱️ *Інтервал:* {task['interval_minutes']} хвилин{' (без повторень)' if task['interval_minutes'] == 0 else ''}"
         )
         
         if update.message:
@@ -844,6 +818,7 @@ class BotHandlers:
 
         if option == 'cancel':
             await query.answer("Відкладення скасовано.")
+            await query.message.delete()
             return
 
         if option == 'custom':
@@ -854,7 +829,8 @@ class BotHandlers:
             }
             await query.answer()
             await query.message.reply_text(
-                "⏱️ Введи інтервал у хвилинах (1–1440), на який відкласти це нагадування:",
+                "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30), на який відкласти це нагадування:",
+                reply_markup=CANCEL_MARKUP
             )
             return
 
@@ -871,9 +847,8 @@ class BotHandlers:
         user_id = query.from_user.id
         await self._apply_snooze_single(user_id, task_id, time_part, minutes)
         await query.answer()
-        await query.message.reply_text(
-            f"⏸ Нагадування відкладено на {minutes} хвилин.",
-            reply_markup=MAIN_MARKUP,
+        await query.message.edit_text(
+            f"⏸ Нагадування відкладено на {minutes} хвилин."
         )
 
     async def _apply_snooze_single(
@@ -920,11 +895,10 @@ class BotHandlers:
                 )
                 return
 
-            try:
-                minutes = int(text)
-            except ValueError:
+            minutes = self.validator.parse_interval(text)
+            if minutes is None:
                 await update.message.reply_text(
-                    "⚠️ Будь ласка, введи число хвилин (1–1440) або '🏠 Скасувати'.",
+                    "⚠️ Будь ласка, введи інтервал (у хвилинах або години:хвилини) або '🏠 Скасувати'.",
                 )
                 # Keep state so user can try again
                 context.user_data['snooze_custom_single'] = data
@@ -966,12 +940,17 @@ class BotHandlers:
 
             minutes = interval_map.get(text)
             if minutes is None:
-                # Treat as custom minutes
-                try:
-                    minutes = int(text)
-                except ValueError:
+                if text == 'Власний інтервал':
                     await update.message.reply_text(
-                        "⚠️ Введи інтервал у хвилинах (1–1440) або обери варіант з клавіатури.",
+                        "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30):",
+                    )
+                    return
+
+                # Treat as custom minutes
+                minutes = self.validator.parse_interval(text)
+                if minutes is None:
+                    await update.message.reply_text(
+                        "⚠️ Введи інтервал (у хвилинах або години:хвилини) або обери варіант з клавіатури.",
                     )
                     return
 

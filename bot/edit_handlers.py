@@ -95,6 +95,7 @@ class EditHandlers:
             
         elif field == 'interval':
             interval_keyboard = [
+                ['не повторювати'],
                 ['5 хвилин', '10 хвилин'],
                 ['15 хвилин', '30 хвилин'],
                 ['1 година', '2 години'],
@@ -114,7 +115,7 @@ class EditHandlers:
                 ['пн', 'вт', 'ср'],
                 ['чт', 'пт', 'сб'],
                 ['нд'],
-                ['щодня', 'не повторювати'],
+                ['щодня', 'одноразове'],
                 ['✅ Підтвердити', '🏠 Скасувати']
             ]
             
@@ -165,25 +166,26 @@ class EditHandlers:
             updates['times'] = valid_times
             
         elif field == 'interval':
-            if text == 'Власний інтервал':
-                await update.message.reply_text("⏱️ Введи інтервал у хвилинах (1-1440):", reply_markup=CANCEL_MARKUP)
+            if text == 'не повторювати':
+                val = 0
+            elif text == 'Власний інтервал':
+                await update.message.reply_text("⏱️ Введи інтервал у хвилинах (1-1440) або години:хвилини:", reply_markup=CANCEL_MARKUP)
                 return ConversationState.EDIT_ENTER_VALUE.value
+            else:
+                interval_map = {
+                    '5 хвилин': 5, '10 хвилин': 10, '15 хвилин': 15,
+                    '30 хвилин': 30, '1 година': 60, '2 години': 120
+                }
+                val = interval_map.get(text)
+                if val is None:
+                    val = self.validator.parse_interval(text)
+                    if val is None:
+                        await update.message.reply_text("⚠️ Введи число або години:хвилини.", reply_markup=CANCEL_MARKUP)
+                        return ConversationState.EDIT_ENTER_VALUE.value
                 
-            interval_map = {
-                '5 хвилин': 5, '10 хвилин': 10, '15 хвилин': 15,
-                '30 хвилин': 30, '1 година': 60, '2 години': 120
-            }
-            val = interval_map.get(text)
-            if val is None:
-                try:
-                    val = int(text)
-                except ValueError:
-                    await update.message.reply_text("⚠️ Введи число.", reply_markup=CANCEL_MARKUP)
+                if not self.validator.validate_interval(val):
+                    await update.message.reply_text("⚠️ Інтервал 1-1440 хвилин.", reply_markup=CANCEL_MARKUP)
                     return ConversationState.EDIT_ENTER_VALUE.value
-            
-            if not self.validator.validate_interval(val):
-                await update.message.reply_text("⚠️ Інтервал 1-1440 хвилин.", reply_markup=CANCEL_MARKUP)
-                return ConversationState.EDIT_ENTER_VALUE.value
             updates['interval_minutes'] = val
 
         # Apply updates
@@ -215,7 +217,7 @@ class EditHandlers:
             context.user_data.clear()
             return ConversationHandler.END
             
-        if text == 'не повторювати':
+        if text == 'одноразове':
             # Show options for one-time reminder: day of week or specific date
             from datetime import datetime
             now = datetime.now(TZ)
@@ -260,10 +262,10 @@ class EditHandlers:
                 reply_markup=ReplyKeyboardMarkup(day_keyboard, resize_keyboard=True)
             )
             
-            # Store day options for reference
-            context.user_data['one_time_day_options'] = {label: idx for idx, label in next_days}
             
             return ConversationState.EDIT_CHOOSING_ONE_TIME_DATE.value
+        
+        return await self._handle_choosing_days_logic(update, context, text)
 
     async def edit_choosing_one_time_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle one-time date selection in edit mode"""
@@ -314,6 +316,11 @@ class EditHandlers:
         )
         return ConversationState.EDIT_CHOOSING_ONE_TIME_DATE.value
 
+    async def edit_choosing_days_continued(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Splitting the block from edit_choosing_one_time_date
+        pass
+
+    async def _handle_choosing_days_logic(self, update, context, text):
         if text == 'щодня':
             context.user_data['edit_days'] = list(range(7))
             await update.message.reply_text("✅ Обрано щоденно. Натисни '✅ Підтвердити'.")
