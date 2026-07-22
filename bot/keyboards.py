@@ -3,8 +3,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 # Main Menu Keyboard Layout
 MAIN_KEYBOARD = [
     ['➕ Створити нагадування'],
-    ['📋 Мої нагадування', '⏸ Відкласти всі'],
-    ['🗑 Видалити нагадування'],
+    ['📋 Мої нагадування']
 ]
 MAIN_MARKUP = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True)
 
@@ -15,12 +14,20 @@ def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int)
     """Build interactive dashboard keyboard with pagination and action buttons."""
     buttons = []
     
-    # Action Row
-    action_row = [
-        InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task_id}", api_kwargs={'style': 'primary'}),
+    # Quick Actions Row
+    quick_actions = [
+        InlineKeyboardButton("✅ Готово", callback_data=f"dashdone_{task_id}", api_kwargs={'style': 'success'}),
+        InlineKeyboardButton("⏸ Відкласти", callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'})
+    ]
+    
+    # Manage Actions Row
+    manage_actions = [
+        InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task_id}"),
         InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task_id}", api_kwargs={'style': 'danger'})
     ]
-    buttons.append(action_row)
+    
+    buttons.append(quick_actions)
+    buttons.append(manage_actions)
     
     # Pagination Row (only if total_count > 1)
     if total_count > 1:

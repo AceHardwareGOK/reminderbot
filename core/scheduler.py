@@ -438,3 +438,42 @@ class ReminderManager:
                 del self.active_repeat_tasks[reminder_instance_id]
             
             del self.scheduler_jobs[user_id][task_id]
+
+    async def get_next_reminder_instance(self, user_id: int, task_id: int) -> Optional[Tuple[str, str]]:
+        """
+        Find the next upcoming reminder instance for a task.
+        Returns Tuple[reminder_instance_id, time_str] or None.
+        """
+        task = await self.db.get_task(task_id)
+        if not task:
+            return None
+            
+        times = task.get('times', [])
+        if not times:
+            return None
+            
+        upcoming = []
+        
+        # Check active jobs in scheduler
+        with self._lock:
+            user_jobs = self.scheduler_jobs.get(user_id, {}).get(task_id, {})
+            for instance_key, job_id in user_jobs.items():
+                job = self.scheduler.get_job(job_id)
+                if job and job.next_run_time:
+                    time_str = job.args[2] if len(job.args) > 2 else times[0]
+                    rem_inst_id = f"{task_id}_{time_str.replace(':', '')}"
+                    upcoming.append((job.next_run_time, rem_inst_id, time_str))
+                    
+        # Filter out already completed ones
+        valid_upcoming = []
+        for next_time, rem_inst_id, time_str in upcoming:
+            if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                valid_upcoming.append((next_time, rem_inst_id, time_str))
+                
+        if valid_upcoming:
+            valid_upcoming.sort(key=lambda x: x[0])
+            return valid_upcoming[0][1], valid_upcoming[0][2]
+            
+        # Fallback: pick first time from task['times']
+        first_time = times[0]
+        return f"{task_id}_{first_time.replace(':', '')}", first_time

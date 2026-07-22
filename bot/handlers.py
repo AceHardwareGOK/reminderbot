@@ -550,8 +550,12 @@ class BotHandlers:
         try:
             if data == 'noop':
                 await query.answer()
+            elif data.startswith('dashdone_'):
+                await self._handle_dashdone(query, data, context)
+            elif data.startswith('dashsnooze_'):
+                await self._handle_dashsnooze(query, data, context)
             elif data.startswith('page_'):
-                await self._handle_page(query, data)
+                await self._handle_page(query, data, context)
             elif data.startswith('delete_'):
                 await self._handle_delete(query, data)
             elif data.startswith('done_'):
@@ -566,7 +570,7 @@ class BotHandlers:
             logger.error(f"Error handling button: {e}")
             await query.answer("❌ Виникла помилка. Спробуй ще раз.", show_alert=True)
 
-    async def _handle_page(self, query, data: str):
+    async def _handle_page(self, query, data: str, context: ContextTypes.DEFAULT_TYPE = None):
         """Handle dashboard pagination"""
         try:
             target_idx = int(data.split('_')[1])
@@ -585,6 +589,9 @@ class BotHandlers:
             return
             
         target_idx = target_idx % len(tasks)
+        if context is not None:
+            context.user_data['dashboard_page'] = target_idx
+            
         task = tasks[target_idx]
         card_text = format_task_card(task, title=f"📋 *Панель нагадувань* \\({target_idx + 1}/{len(tasks)}\\)")
         markup = build_dashboard_keyboard(task['task_id'], target_idx, len(tasks))
@@ -598,6 +605,71 @@ class BotHandlers:
         except Exception:
             pass
         await query.answer()
+
+    async def _handle_dashdone(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
+        """Handle 'Done' button directly from Dashboard card."""
+        try:
+            task_id = int(data.split('_')[1])
+        except (IndexError, ValueError):
+            await query.answer("❌ Помилка даних", show_alert=True)
+            return
+
+        user_id = query.from_user.id
+        next_info = await self.reminder_manager.get_next_reminder_instance(user_id, task_id)
+        if not next_info:
+            await query.answer("⚠️ Немає активних нагадувань для цієї задачі.", show_alert=True)
+            return
+            
+        rem_inst_id, time_str = next_info
+        
+        # Stop active repeat tasks for this instance
+        await self.reminder_manager.stop_active_repeats(rem_inst_id)
+        
+        task = await self.db.get_task(task_id)
+        if not task:
+            await query.answer("⚠️ Завдання не знайдено.", show_alert=True)
+            return
+
+        await self.db.mark_reminder_completed(user_id, task_id, rem_inst_id)
+        
+        is_one_time = task.get('is_one_time', False)
+        if is_one_time:
+            has_remaining = self.reminder_manager.has_remaining_jobs(user_id, task_id)
+            if not has_remaining:
+                self.reminder_manager.cancel_task(user_id, task_id)
+                await self.db.delete_task(task_id)
+                await query.answer(f"✅ Нагадування о {time_str} виконано! Завдання завершено.", show_alert=True)
+            else:
+                await query.answer(f"✅ Нагадування о {time_str} виконано!", show_alert=True)
+        else:
+            await query.answer(f"✅ Нагадування о {time_str} відмічено виконаним!", show_alert=False)
+
+        # Refresh dashboard page
+        tasks = await self.db.get_user_tasks(user_id)
+        if tasks:
+            page = min(context.user_data.get('dashboard_page', 0), len(tasks) - 1)
+            await self._handle_page(query, f"page_{page}", context)
+        else:
+            await query.edit_message_text("📋 *У тебе поки немає активних нагадувань\\!*", parse_mode='MarkdownV2')
+
+    async def _handle_dashsnooze(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
+        """Handle 'Snooze' button directly from Dashboard card."""
+        try:
+            task_id = int(data.split('_')[1])
+        except (IndexError, ValueError):
+            await query.answer("❌ Помилка даних", show_alert=True)
+            return
+
+        user_id = query.from_user.id
+        next_info = await self.reminder_manager.get_next_reminder_instance(user_id, task_id)
+        if not next_info:
+            await query.answer("⚠️ Немає активних нагадувань для цієї задачі.", show_alert=True)
+            return
+            
+        rem_inst_id, time_str = next_info
+        time_part = time_str.replace(':', '')
+        fake_data = f"snooze_{task_id}_{time_part}"
+        await self._handle_snooze_single(query, fake_data, context)
 
 
     async def _handle_delete(self, query, data: str):
