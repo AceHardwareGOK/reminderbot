@@ -123,8 +123,21 @@ class ReminderManager:
         except Exception as e:
             logger.error(f"Error scheduling task {task.get('task_id')}: {e}")
     
+    def has_remaining_jobs(self, user_id: int, task_id: int) -> bool:
+        """Check if a task still has scheduled future jobs in the scheduler."""
+        with self._lock:
+            user_jobs = self.scheduler_jobs.get(user_id, {}).get(task_id, {})
+            if not user_jobs:
+                return False
+            now = datetime.now(TZ)
+            for instance_id, job_id in user_jobs.items():
+                job = self.scheduler.get_job(job_id)
+                if job and job.next_run_time and job.next_run_time > now:
+                    return True
+            return False
+
     def _schedule_one_time_task(self, task: Dict):
-        """Schedule a one-time task"""
+        """Schedule a one-time task for all specified times"""
         user_id = task['user_id']
         task_id = task['task_id']
         days = task['days']
@@ -135,41 +148,38 @@ class ReminderManager:
         
         if one_time_date:
             try:
-                if len(one_time_date) == 10:  # YYYY-MM-DD
-                    target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
-                    time_str = times[0]
-                    hour, minute = map(int, time_str.split(':'))
-                    target_datetime = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
-                else:  # YYYY-MM-DD HH:MM
-                    target_datetime = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
-                    target_datetime = target_datetime.replace(tzinfo=TZ)
-                    time_str = target_datetime.strftime('%H:%M')
-                
-                if target_datetime <= now:
-                    # If in the past, trigger immediately if not completed
-                    logger.info(f"One-time task {task_id} is in the past, triggering immediately")
-                    asyncio.create_task(self._send_reminder_async(user_id, task, time_str))
-                    return
-                
-                job_id = f"reminder_{user_id}_{task_id}_date_{time_str.replace(':', '')}"
-                self.scheduler.add_job(
-                    func=self._send_reminder_async,
-                    trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
-                    id=job_id,
-                    args=[user_id, task, time_str],
-                    replace_existing=True,
-                    misfire_grace_time=300
-                )
-                
-                instance_id = f"date_{time_str.replace(':', '')}"
-                with self._lock:
-                    self.scheduler_jobs[user_id][task_id][instance_id] = job_id
-                
+                for time_str in times:
+                    if len(one_time_date) == 10:  # YYYY-MM-DD
+                        target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
+                        hour, minute = map(int, time_str.split(':'))
+                        target_datetime = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
+                    else:  # YYYY-MM-DD HH:MM
+                        target_datetime = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
+                        target_datetime = target_datetime.replace(tzinfo=TZ)
+                        time_str = target_datetime.strftime('%H:%M')
+                    
+                    if target_datetime <= now:
+                        logger.info(f"One-time task {task_id} time {time_str} is in the past, triggering immediately")
+                        asyncio.create_task(self._send_reminder_async(user_id, task, time_str))
+                    else:
+                        job_id = f"reminder_{user_id}_{task_id}_date_{time_str.replace(':', '')}"
+                        self.scheduler.add_job(
+                            func=self._send_reminder_async,
+                            trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
+                            id=job_id,
+                            args=[user_id, task, time_str],
+                            replace_existing=True,
+                            misfire_grace_time=300
+                        )
+                        
+                        instance_id = f"date_{time_str.replace(':', '')}"
+                        with self._lock:
+                            self.scheduler_jobs[user_id][task_id][instance_id] = job_id
                 return
             except ValueError as e:
                 logger.error(f"Invalid date format for one-time task: {e}")
         
-        # Fallback logic for days if no specific date (legacy support or specific flow)
+        # Fallback logic for days if no specific date
         current_day = now.weekday()
         if not days:
             days = [current_day]
@@ -185,10 +195,8 @@ class ReminderManager:
                         target_datetime = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
                         break
                     else:
-                        # If today but passed, trigger immediately
-                        logger.info(f"One-time task {task_id} (today) is in the past, triggering immediately")
+                        logger.info(f"One-time task {task_id} {time_str} is in the past today, triggering immediately")
                         asyncio.create_task(self._send_reminder_async(user_id, task, time_str))
-                        return # Assume one-time task only needs one trigger
                 else:
                     target_datetime = now + timedelta(days=days_until)
                     target_datetime = target_datetime.replace(hour=hour, minute=minute, second=0, microsecond=0)

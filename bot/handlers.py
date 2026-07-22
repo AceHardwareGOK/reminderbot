@@ -759,17 +759,26 @@ class BotHandlers:
         is_one_time = task.get('is_one_time', False)
         
         if is_one_time:
-            # Delete one-time task
-            self.reminder_manager.cancel_task(user_id, task_id)
-            await self.db.delete_task(task_id)
-            
-            await query.edit_message_text(
-                f"✅ Нагадування '{task['description']}' о {time_display} виконано!\n\n"
-                f"Одноразове завдання було автоматично видалено."
-            )
+            # Check if there are other future scheduled times for this one-time task
+            has_remaining = self.reminder_manager.has_remaining_jobs(user_id, task_id)
+            if not has_remaining:
+                self.reminder_manager.cancel_task(user_id, task_id)
+                await self.db.delete_task(task_id)
+                await query.edit_message_text(
+                    f"✅ *Нагадування '{escape_md(task['description'])}' о {escape_md(time_display)} виконано\\!*\n\n"
+                    f"🎉 _Усі нагадування цього завдання завершено, його видалено\\._",
+                    parse_mode='MarkdownV2'
+                )
+            else:
+                await query.edit_message_text(
+                    f"✅ *Нагадування '{escape_md(task['description'])}' о {escape_md(time_display)} виконано\\!*\n\n"
+                    f"⏳ _Залишилися наступні нагадування для цього завдання\\._",
+                    parse_mode='MarkdownV2'
+                )
         else:
             await query.edit_message_text(
-                f"✅ Нагадування '{task['description']}' о {time_display} позначено як виконане!"
+                f"✅ *Нагадування '{escape_md(task['description'])}' о {escape_md(time_display)} позначено як виконане\\!*",
+                parse_mode='MarkdownV2'
             )
 
     # ==================== SNOOZE HANDLERS ====================
