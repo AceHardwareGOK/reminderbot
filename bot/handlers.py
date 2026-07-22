@@ -12,7 +12,9 @@ from .states import ConversationState
 from .keyboards import MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD, build_dashboard_keyboard
 from .ui_helpers import (
     escape_md, format_task_card, format_progress_header, 
-    format_reminder_notification, get_task_type_str
+    format_reminder_notification, get_task_type_str,
+    format_wizard_step, build_wiz_days_keyboard,
+    build_wiz_times_keyboard, build_wiz_interval_keyboard
 )
 
 logger = logging.getLogger(__name__)
@@ -115,418 +117,256 @@ class BotHandlers:
             logger.error(f"Error refreshing scheduler: {e}")
             await update.message.reply_text("❌ Помилка оновлення.")
 
-    # ==================== CREATE REMINDER FLOW ====================
+    # ==================== CREATE REMINDER FLOW (SINGLE-MESSAGE WIZARD) ====================
     
     async def create_reminder_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start reminder creation"""
+        """Start Single-Message Wizard for reminder creation"""
         if not update.message:
             return
         
-        await update.message.reply_text(
-            f"➕ *Створення нового нагадування*\n\n"
-            f"{format_progress_header(1, 4, 'Опис завдання')}\n\n"
-            f"📝 Введи опис або текст завдання:",
+        context.user_data.clear()
+        context.user_data['wizard_data'] = {'days': [], 'times': [], 'interval_minutes': 0}
+        
+        cancel_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})]])
+        
+        msg = await update.message.reply_text(
+            format_wizard_step(1, context.user_data['wizard_data']),
             parse_mode='MarkdownV2',
-            reply_markup=CANCEL_MARKUP
+            reply_markup=cancel_markup
         )
+        context.user_data['wizard_message_id'] = msg.message_id
         return ConversationState.DESCRIBING_TASK.value
     
     async def get_description(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Get task description"""
+        """Get task description and advance Single-Message Wizard to step 2"""
         if not update.message or not update.message.text:
             return ConversationHandler.END
         
-        description = update.message.text.strip()
+        text = update.message.text.strip()
         
-        if description == '🏠 Скасувати':
-            return await self.cancel(update, context)
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+            
+        if text in ('🏠 Скасувати', '/cancel'):
+            return await self._cancel_wizard(update, context)
+            
+        context.user_data['wizard_data']['description'] = text
         
-        if not description:
-            await update.message.reply_text(
-                "⚠️ *Опис не може бути порожнім\\.* Спробуй ще раз:",
-                parse_mode='MarkdownV2',
-                reply_markup=CANCEL_MARKUP
-            )
-            return ConversationState.DESCRIBING_TASK.value
+        wiz_msg_id = context.user_data.get('wizard_message_id')
+        markup = build_wiz_days_keyboard(context.user_data['wizard_data']['days'])
         
-        context.user_data['description'] = description
-        
-        # Initialize day selection
-        if update.effective_user:
-            self.reminder_manager.user_day_selections[update.effective_user.id] = []
-        
-        days_keyboard = [
-            ['пн', 'вт', 'ср'],
-            ['чт', 'пт', 'сб'],
-            ['нд'],
-            ['щодня', 'одноразове'],
-            ['✅ Підтвердити', '🏠 Скасувати']
-        ]
-        
-        await update.message.reply_text(
-            f"{format_progress_header(2, 4, 'Обираємо дні')}\n\n"
-            f"📅 *Обери дні для нагадування:*\n"
-            f"• Натискай на дні для вибору/скасування\n"
-            f"• Натисни 'щодня' для щоденних\n"
-            f"• Натисни 'одноразове' для разового\n"
-            f"• Натисни '✅ Підтвердити', коли закінчиш",
-            parse_mode='MarkdownV2',
-            reply_markup=ReplyKeyboardMarkup(days_keyboard, resize_keyboard=True)
-        )
+        if wiz_msg_id and update.effective_chat:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=wiz_msg_id,
+                    text=format_wizard_step(2, context.user_data['wizard_data']),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+            except Exception as e:
+                logger.error(f"Error editing wizard msg: {e}")
         return ConversationState.CHOOSING_DAYS.value
 
     async def get_days(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle day selection"""
-        if not update.message or not update.message.text or not update.effective_user:
-            return ConversationHandler.END
-        
-        user_id = update.effective_user.id
-        text = update.message.text.strip()
-        
-        if text == '🏠 Скасувати':
-            return await self.cancel(update, context)
-        
-        # Handle one-time task
-        if text == 'одноразове':
-            context.user_data['is_one_time'] = True
-            
-            # Show options for one-time reminder: day of week or specific date
-            now = datetime.now(TZ)
-            current_day = now.weekday()
-            
-            # Get next occurrence of each day of week
-            next_days = []
-            seen_days = set()
-            i = 0
-            while len(seen_days) < 7 and i < 14:  # Limit to 14 days ahead
-                day_index = (current_day + i) % 7
-                if day_index not in seen_days:
-                    seen_days.add(day_index)
-                    day = DayOfWeek.from_index(day_index)
-                    if day:
-                        if i == 0:
-                            day_label = f"{day.full} (сьогодні)"
-                        elif i == 1:
-                            day_label = f"{day.full} (завтра)"
-                        else:
-                            # Plural form for days
-                            if i % 10 == 2 or i % 10 == 3 or i % 10 == 4:
-                                day_label = f"{day.full} (через {i} дні)"
-                            else:
-                                day_label = f"{day.full} (через {i} днів)"
-                        next_days.append((day_index, day_label))
-                i += 1
-            
-            day_keyboard = []
-            for i in range(0, len(next_days), 2):
-                row = [next_days[i][1]]
-                if i + 1 < len(next_days):
-                    row.append(next_days[i + 1][1])
-                day_keyboard.append(row)
-            
-            day_keyboard.append(['📅 Вказати конкретну дату'])
-            day_keyboard.append(['🏠 Скасувати'])
-            
-            await update.message.reply_text(
-                "📅 Одноразове нагадування\n\n"
-                "Обери найближчий день тижня або вкажи конкретну дату:",
-                reply_markup=ReplyKeyboardMarkup(day_keyboard, resize_keyboard=True)
-            )
-            
-            # Store day options for reference
-            context.user_data['one_time_day_options'] = {label: idx for idx, label in next_days}
-            
-            return ConversationState.CHOOSING_ONE_TIME_DATE.value
-        
-        # Handle everyday selection
-        if text == 'щодня':
-            context.user_data['everyday'] = True
-            await update.message.reply_text(
-                "✅ Обрано щоденні нагадування.\n"
-                "Натисни '✅ Підтвердити', щоб продовжити."
-            )
-            return ConversationState.CHOOSING_DAYS.value
-        
-        # Handle confirmation
-        if text == '✅ Підтвердити':
-            selected_days = self.reminder_manager.user_day_selections.get(user_id, [])
-            
-            if context.user_data.get('everyday'):
-                selected_days = list(range(7))
-            
-            is_one_time = context.user_data.get('is_one_time', False)
-            
-            if not selected_days and not is_one_time and not context.user_data.get('everyday'):
-                await update.message.reply_text(
-                    "⚠️ Будь ласка, обери хоча б один день."
-                )
-                return ConversationState.CHOOSING_DAYS.value
-            
-            context.user_data['days'] = selected_days
-            
-            await update.message.reply_text(
-                "⏰ Введи час для нагадувань (24-годинний формат, наприклад, 09:30)\n"
-                "Розділяй кілька часів комами (наприклад, 09:30, 14:15, 18:00)",
-                reply_markup=CANCEL_MARKUP
-            )
-            return ConversationState.CHOOSING_TIMES.value
-        
-        # Handle individual day selection
-        day = DayOfWeek.from_short(text)
-        if day:
-            if user_id not in self.reminder_manager.user_day_selections:
-                self.reminder_manager.user_day_selections[user_id] = []
-            
-            current = self.reminder_manager.user_day_selections[user_id]
-            if day.index in current:
-                current.remove(day.index)
-            else:
-                current.append(day.index)
-            
-            current.sort()
-            
-            if current:
-                day_names = [DayOfWeek.from_index(i).full for i in current]
-                feedback = f"✅ Обрані дні: {', '.join(day_names)}"
-            else:
-                feedback = "Ще не обрано жодного дня."
-            
-            await update.message.reply_text(feedback)
-        
+        """Fallback for text input in days step"""
+        if update.message:
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
         return ConversationState.CHOOSING_DAYS.value
 
-    async def get_one_time_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle one-time reminder date/day selection"""
-        if not update.message or not update.message.text or not update.effective_user:
-            return ConversationHandler.END
-        
-        text = update.message.text.strip()
-        
-        if text == '🏠 Скасувати':
-            return await self.cancel(update, context)
-        
-        # Check if specific date was selected
-        if text == '📅 Вказати конкретну дату':
-            await update.message.reply_text(
-                "📅 Введи дату і час для нагадування\n\n"
-                "Формат: ДД.ММ.РРРР ГГ:ХХ\n"
-                "Приклади:\n"
-                "• 25.12.2024 16:00\n"
-                "• 01.01.2025 09:30\n\n"
-                "Або просто дату (час вкажеш далі):\n"
-                "• 25.12.2024",
-                reply_markup=CANCEL_MARKUP
-            )
-            context.user_data['waiting_for_date_input'] = True
-            return ConversationState.CHOOSING_ONE_TIME_DATE.value
-        
-        # Check if waiting for date input
-        if context.user_data.get('waiting_for_date_input'):
-            try:
-                # Try to parse date with time
-                if len(text) > 10:  # Contains time
-                    # Format: DD.MM.YYYY HH:MM
-                    target_datetime = datetime.strptime(text, '%d.%m.%Y %H:%M')
-                    context.user_data['one_time_date'] = target_datetime.strftime('%Y-%m-%d %H:%M')
-                    context.user_data['waiting_for_date_input'] = False
-                    # Skip time selection since time is already included
-                    context.user_data['times'] = [target_datetime.strftime('%H:%M')]
-                    context.user_data['days'] = []  # No day needed for specific date
-                    
-                    # Go directly to interval selection
-                    interval_keyboard = [
-                        ['не повторювати'],
-                        ['5 хвилин', '10 хвилин'],
-                        ['15 хвилин', '30 хвилин'],
-                        ['1 година', '2 години'],
-                        ['Власний інтервал'],
-                        ['🏠 Скасувати']
-                    ]
-                    
-                    await update.message.reply_text(
-                        f"✅ Дата встановлена: {target_datetime.strftime('%d.%m.%Y %H:%M')}\n\n"
-                        "⏱️ Як часто мені нагадувати, якщо ти не позначиш як виконане?",
-                        reply_markup=ReplyKeyboardMarkup(interval_keyboard, resize_keyboard=True)
-                    )
-                    return ConversationState.CHOOSING_INTERVAL.value
-                else:
-                    # Format: DD.MM.YYYY (only date)
-                    target_date = datetime.strptime(text, '%d.%m.%Y')
-                    # Check if date is in the past
-                    if target_date.date() < datetime.now(TZ).date():
-                        await update.message.reply_text(
-                            "⚠️ Дата не може бути в минулому. Введи дату ще раз:",
-                            reply_markup=CANCEL_MARKUP
-                        )
-                        return ConversationState.CHOOSING_ONE_TIME_DATE.value
-                    
-                    context.user_data['one_time_date'] = target_date.strftime('%Y-%m-%d')
-                    context.user_data['waiting_for_date_input'] = False
-                    context.user_data['days'] = []  # No day needed for specific date
-                    
-                    await update.message.reply_text(
-                        f"✅ Дата встановлена: {target_date.strftime('%d.%m.%Y')}\n\n"
-                        "⏰ Введи час для нагадування (24-годинний формат, наприклад, 16:00):",
-                        reply_markup=CANCEL_MARKUP
-                    )
-                    return ConversationState.CHOOSING_TIMES.value
-            except ValueError:
-                await update.message.reply_text(
-                    "⚠️ Неправильний формат дати. Спробуй ще раз:\n\n"
-                    "Формат: ДД.ММ.РРРР ГГ:ХХ або ДД.ММ.РРРР\n"
-                    "Приклад: 25.12.2024 16:00",
-                    reply_markup=CANCEL_MARKUP
-                )
-                return ConversationState.CHOOSING_ONE_TIME_DATE.value
-        
-        # Check if day of week was selected
-        day_options = context.user_data.get('one_time_day_options', {})
-        if text in day_options:
-            selected_day = day_options[text]
-            context.user_data['days'] = [selected_day]
-            context.user_data['one_time_date'] = None
-            
-            day = DayOfWeek.from_index(selected_day)
-            await update.message.reply_text(
-                f"✅ Обрано: {day.full if day else 'день'}\n\n"
-                "⏰ Введи час для нагадування (24-годинний формат, наприклад, 16:00):",
-                reply_markup=CANCEL_MARKUP
-            )
-            return ConversationState.CHOOSING_TIMES.value
-        
-        # Unknown input
-        await update.message.reply_text(
-            "⚠️ Будь ласка, обери день тижня або вкажи конкретну дату.",
-            reply_markup=CANCEL_MARKUP
-        )
-        return ConversationState.CHOOSING_ONE_TIME_DATE.value
-
     async def get_times(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Get and validate times"""
+        """Handle custom text input for times (e.g., 09:30, 18:00) in wizard"""
         if not update.message or not update.message.text:
-            return ConversationHandler.END
-        
+            return ConversationState.CHOOSING_TIMES.value
+            
         text = update.message.text.strip()
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+            
+        wiz_data = context.user_data.get('wizard_data', {})
+        valid_times, error = self.validator.validate_times(text)
         
-        if text == '🏠 Скасувати':
-            return await self.cancel(update, context)
+        wiz_msg_id = context.user_data.get('wizard_message_id')
         
-        valid_times, invalid_times = self.validator.parse_times(text)
-        
-        if invalid_times:
-            await update.message.reply_text(
-                f"⚠️ Неправильний формат часу: {', '.join(invalid_times)}\n"
-                "Будь ласка, використовуй 24-годинний формат (ГГ:ХХ)",
-                reply_markup=CANCEL_MARKUP
-            )
+        if error or not valid_times:
             return ConversationState.CHOOSING_TIMES.value
+            
+        wiz_data['times'] = valid_times
+        markup = build_wiz_times_keyboard(valid_times)
         
-        if not valid_times:
-            await update.message.reply_text(
-                "⚠️ Будь ласка, введи хоча б один час.",
-                reply_markup=CANCEL_MARKUP
-            )
-            return ConversationState.CHOOSING_TIMES.value
-        
-        context.user_data['times'] = valid_times
-        
-        interval_keyboard = [
-            ['не повторювати'],
-            ['5 хвилин', '10 хвилин'],
-            ['15 хвилин', '30 хвилин'],
-            ['1 година', '2 години'],
-            ['Власний інтервал'],
-            ['🏠 Скасувати']
-        ]
-        
-        await update.message.reply_text(
-            "⏱️ Як часто мені нагадувати, якщо ти не позначиш як виконане?",
-            reply_markup=ReplyKeyboardMarkup(interval_keyboard, resize_keyboard=True)
-        )
-        return ConversationState.CHOOSING_INTERVAL.value
+        if wiz_msg_id and update.effective_chat:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=wiz_msg_id,
+                    text=format_wizard_step(3, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+            except Exception as e:
+                logger.error(f"Error editing wizard msg: {e}")
+        return ConversationState.CHOOSING_TIMES.value
 
     async def get_interval(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Get reminder interval"""
-        if not update.message or not update.message.text or not update.effective_user:
+        """Fallback for text input in interval step"""
+        if update.message:
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+        return ConversationState.CHOOSING_INTERVAL.value
+
+    async def _cancel_wizard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Cancel wizard helper"""
+        wiz_msg_id = context.user_data.get('wizard_message_id')
+        if wiz_msg_id and update.effective_chat:
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=wiz_msg_id,
+                    text="❌ *Створення нагадування скасовано\\.*",
+                    parse_mode='MarkdownV2'
+                )
+            except Exception:
+                pass
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    async def handle_wizard_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle inline button clicks inside the Single-Message Wizard"""
+        query = update.callback_query
+        if not query or not query.data:
+            return
+        
+        data = query.data
+        wiz_data = context.user_data.get('wizard_data', {'days': [], 'times': [], 'interval_minutes': 0})
+        
+        if data == 'wiz_cancel':
+            await query.answer("Створення скасовано.")
+            await query.edit_message_text("❌ *Створення нагадування скасовано\\.*", parse_mode='MarkdownV2')
+            context.user_data.clear()
             return ConversationHandler.END
-        
-        text = update.message.text.strip()
-        
-        if text == '🏠 Скасувати':
-            return await self.cancel(update, context)
-        
-        if text == 'Власний інтервал':
-            await update.message.reply_text(
-                "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30):",
-                reply_markup=CANCEL_MARKUP
-            )
-            return ConversationState.CHOOSING_INTERVAL.value
-        
-        # Parse interval
-        interval_map = {
-            '5 хвилин': 5, '10 хвилин': 10, '15 хвилин': 15,
-            '30 хвилин': 30, '1 година': 60, '2 години': 120
-        }
-        
-        # Handle interval
-        if text == 'не повторювати':
-            interval_minutes = 0
-        else:
-            interval_minutes = interval_map.get(text)
             
-            if interval_minutes is None:
-                interval_minutes = self.validator.parse_interval(text)
-                if interval_minutes is None:
-                    await update.message.reply_text(
-                        "⚠️ Будь ласка, введи інтервал (наприклад 90 або 1:30).",
-                        reply_markup=CANCEL_MARKUP
-                    )
-                    return ConversationState.CHOOSING_INTERVAL.value
-        
-        if not self.validator.validate_interval(interval_minutes):
-            await update.message.reply_text(
-                "⚠️ Інтервал має бути від 1 до 1440 хвилин.",
-                reply_markup=CANCEL_MARKUP
+        # STEP 2: DAYS & TYPE
+        if data.startswith('wizday_'):
+            action = data.split('_')[1]
+            if action.isdigit():
+                day_idx = int(action)
+                if day_idx in wiz_data['days']:
+                    wiz_data['days'].remove(day_idx)
+                else:
+                    wiz_data['days'].append(day_idx)
+                wiz_data['is_one_time'] = False
+                wiz_data['everyday'] = False
+            elif action == 'everyday':
+                wiz_data['everyday'] = not wiz_data.get('everyday', False)
+                if wiz_data['everyday']:
+                    wiz_data['days'] = list(range(7))
+                    wiz_data['is_one_time'] = False
+                else:
+                    wiz_data['days'] = []
+            elif action == 'onetime':
+                wiz_data['is_one_time'] = not wiz_data.get('is_one_time', False)
+                if wiz_data['is_one_time']:
+                    wiz_data['everyday'] = False
+                    wiz_data['days'] = [datetime.now(TZ).weekday()]
+                else:
+                    wiz_data['days'] = []
+            elif action == 'confirm':
+                if not wiz_data.get('days') and not wiz_data.get('is_one_time') and not wiz_data.get('everyday'):
+                    await query.answer("⚠️ Обери хоча б один день або тип нагадування!", show_alert=True)
+                    return ConversationState.CHOOSING_DAYS.value
+                await query.answer()
+                markup = build_wiz_times_keyboard(wiz_data['times'])
+                await query.edit_message_text(
+                    format_wizard_step(3, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+                return ConversationState.CHOOSING_TIMES.value
+                
+            await query.answer()
+            markup = build_wiz_days_keyboard(
+                wiz_data['days'],
+                wiz_data.get('is_one_time', False),
+                wiz_data.get('everyday', False)
             )
+            await query.edit_message_reply_markup(reply_markup=markup)
+            return ConversationState.CHOOSING_DAYS.value
+
+        # STEP 3: TIMES
+        elif data.startswith('wiztime_'):
+            action = data.split('_')[1]
+            if action == 'confirm':
+                if not wiz_data.get('times'):
+                    await query.answer("⚠️ Обери або введи у чат хоча б один час!", show_alert=True)
+                    return ConversationState.CHOOSING_TIMES.value
+                await query.answer()
+                markup = build_wiz_interval_keyboard(wiz_data.get('interval_minutes', 0))
+                await query.edit_message_text(
+                    format_wizard_step(4, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+                return ConversationState.CHOOSING_INTERVAL.value
+            else:
+                time_str = action
+                if time_str in wiz_data['times']:
+                    wiz_data['times'].remove(time_str)
+                else:
+                    wiz_data['times'].append(time_str)
+                wiz_data['times'].sort()
+                
+                await query.answer()
+                markup = build_wiz_times_keyboard(wiz_data['times'])
+                await query.edit_message_text(
+                    format_wizard_step(3, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+                return ConversationState.CHOOSING_TIMES.value
+
+        # STEP 4: INTERVAL & SAVE
+        elif data.startswith('wizint_'):
+            interval_val = int(data.split('_')[1])
+            wiz_data['interval_minutes'] = interval_val
+            await query.answer()
+            markup = build_wiz_interval_keyboard(interval_val)
+            await query.edit_message_reply_markup(reply_markup=markup)
             return ConversationState.CHOOSING_INTERVAL.value
-        
-        # Save task
-        user_id = update.effective_user.id
-        description = context.user_data.get('description', '')
-        days = context.user_data.get('days', [])
-        times = context.user_data.get('times', [])
-        is_one_time = context.user_data.get('is_one_time', False)
-        one_time_date = context.user_data.get('one_time_date')
-        
-        try:
+
+        elif data == 'wiz_save':
+            await query.answer("🚀 Зберігаємо нагадування...")
+            user_id = query.from_user.id
+            desc = wiz_data.get('description', 'Без опису')
+            days = wiz_data.get('days', [])
+            times = wiz_data.get('times', ['09:00'])
+            interval = wiz_data.get('interval_minutes', 0)
+            is_one_time = wiz_data.get('is_one_time', False)
+            one_time_date = wiz_data.get('one_time_date')
+            
             task_id = await self.db.add_task(
-                user_id, description, days, times, interval_minutes, is_one_time, one_time_date
+                user_id, desc, days, times, interval, is_one_time, one_time_date
             )
-            
             task = await self.db.get_task(task_id)
             if task:
                 self.reminder_manager.schedule_task(task)
-            
-            await update.message.reply_text(
-                "✅ Нагадування успішно створено!",
-                reply_markup=MAIN_MARKUP
-            )
-            await self._send_task_message(update, task)
-        
-        except Exception as e:
-            logger.error(f"Error creating task: {e}")
-            await update.message.reply_text(
-                "❌ Помилка створення нагадування. Спробуй ще раз.",
-                reply_markup=MAIN_MARKUP
-            )
-        
-        finally:
-            # Cleanup
+                card_text = format_task_card(task, title="🎉 *Нагадування успішно створено\\!*")
+                markup = build_dashboard_keyboard(task_id, 0, 1)
+                await query.edit_message_text(
+                    card_text,
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
             context.user_data.clear()
-            if user_id in self.reminder_manager.user_day_selections:
-                del self.reminder_manager.user_day_selections[user_id]
-        
-        return ConversationHandler.END
+            return ConversationHandler.END
 
     # ==================== VIEW REMINDERS ====================
     

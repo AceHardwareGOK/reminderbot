@@ -90,26 +90,28 @@ def main():
     # Setup create conversation handler
     conv_handler = ConversationHandler(
         entry_points=[
-            MessageHandler(filters.Regex('^➕ Створити нагадування$'), handlers.create_reminder_start)
+            MessageHandler(filters.Regex('^➕ Створити нагадування$'), handlers.create_reminder_start),
+            CommandHandler('create', handlers.create_reminder_start)
         ],
         states={
             ConversationState.DESCRIBING_TASK.value: [
+                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_description)
             ],
             ConversationState.CHOOSING_DAYS.value: [
+                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_days)
             ],
-            ConversationState.CHOOSING_ONE_TIME_DATE.value: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_one_time_date)
-            ],
             ConversationState.CHOOSING_TIMES.value: [
+                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_times)
             ],
             ConversationState.CHOOSING_INTERVAL.value: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_interval)
+                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz')
             ],
         },
         fallbacks=[
+            CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz_cancel$'),
             MessageHandler(filters.Regex('^🏠 Скасувати$'), handlers.cancel),
             CommandHandler('cancel', handlers.cancel)
         ]
