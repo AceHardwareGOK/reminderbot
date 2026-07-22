@@ -103,7 +103,8 @@ def format_wizard_step(step: int, data: dict) -> str:
             f"📅 *Розклад:* {days_str}\n"
             f"⏰ *Час:* `{times_str}`\n"
             f"⏱️ *Інтервал:* `{interval_str}`\n\n"
-            f"✨ _Перевір деталі та натисни кнопку збереження нижче\\!_"
+            f"⏱️ *Обери популярний інтервал нижче або введи свій у чат \\(наприклад, 45, 90 чи 1:30\\):*\n"
+            f"✨ _Після цього натисни кнопку збереження нижче\\!_"
         )
 
 def build_wiz_days_keyboard(selected_days: list, is_one_time: bool = False, everyday: bool = False) -> InlineKeyboardMarkup:
@@ -153,16 +154,27 @@ def build_wiz_times_keyboard(selected_times: list) -> InlineKeyboardMarkup:
 def build_wiz_interval_keyboard(current_interval: int = 0) -> InlineKeyboardMarkup:
     """Build Inline Keyboard for interval and final save."""
     opts = [(0, "Без повторів"), (15, "15 хв"), (30, "30 хв"), (60, "1 год")]
+    standard_vals = {val for val, _ in opts}
+    
     row = []
     for val, label in opts:
         mark = "✅ " if current_interval == val else ""
         row.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"wizint_{val}"))
         
+    rows = [row]
+    
+    if current_interval not in standard_vals and current_interval > 0:
+        custom_row = [
+            InlineKeyboardButton(f"✅ Власний: {current_interval} хв", callback_data=f"wizint_{current_interval}")
+        ]
+        rows.append(custom_row)
+        
     row_save = [
         InlineKeyboardButton("🚀 Зберегти нагадування!", callback_data="wiz_save", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})
     ]
-    return InlineKeyboardMarkup([row, row_save])
+    rows.append(row_save)
+    return InlineKeyboardMarkup(rows)
 
 def format_task_card(task: Dict, title: str = "📝 *Завдання*") -> str:
     """Format task dictionary into a sleek MarkdownV2 card."""

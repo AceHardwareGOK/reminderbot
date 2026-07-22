@@ -107,7 +107,8 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_times)
             ],
             ConversationState.CHOOSING_INTERVAL.value: [
-                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz')
+                CallbackQueryHandler(handlers.handle_wizard_callback, pattern='^wiz'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.get_interval)
             ],
         },
         fallbacks=[

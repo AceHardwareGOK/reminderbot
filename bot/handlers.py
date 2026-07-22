@@ -219,12 +219,38 @@ class BotHandlers:
         return ConversationState.CHOOSING_TIMES.value
 
     async def get_interval(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Fallback for text input in interval step"""
-        if update.message:
+        """Handle custom text input for interval (e.g., 45, 90, 1:30) in wizard"""
+        if not update.message or not update.message.text:
+            return ConversationState.CHOOSING_INTERVAL.value
+            
+        text = update.message.text.strip()
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+            
+        wiz_data = context.user_data.setdefault('wizard_data', {'days': [], 'times': [], 'interval_minutes': 0})
+        parsed_interval = self.validator.parse_interval(text)
+        
+        wiz_msg_id = context.user_data.get('wizard_message_id')
+        
+        if parsed_interval is None or not self.validator.validate_interval(parsed_interval):
+            return ConversationState.CHOOSING_INTERVAL.value
+            
+        wiz_data['interval_minutes'] = parsed_interval
+        markup = build_wiz_interval_keyboard(parsed_interval)
+        
+        if wiz_msg_id and update.effective_chat:
             try:
-                await update.message.delete()
-            except Exception:
-                pass
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=wiz_msg_id,
+                    text=format_wizard_step(4, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+            except Exception as e:
+                logger.error(f"Error editing wizard msg: {e}")
         return ConversationState.CHOOSING_INTERVAL.value
 
     async def _cancel_wizard(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
