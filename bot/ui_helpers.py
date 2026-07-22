@@ -128,6 +128,7 @@ def build_wiz_days_keyboard(selected_days: list, is_one_time: bool = False, ever
     ]
     
     row_actions = [
+        InlineKeyboardButton("◀️ Назад", callback_data="wizback_1"),
         InlineKeyboardButton("✅ Далі (Час)", callback_data="wizday_confirm", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})
     ]
@@ -146,6 +147,7 @@ def build_wiz_times_keyboard(selected_times: list) -> InlineKeyboardMarkup:
         row2.append(InlineKeyboardButton(f"{mark}{t}", callback_data=f"wiztime_{t}"))
         
     row_actions = [
+        InlineKeyboardButton("◀️ Назад", callback_data="wizback_2"),
         InlineKeyboardButton("✅ Далі (Інтервал)", callback_data="wiztime_confirm", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})
     ]
@@ -170,7 +172,8 @@ def build_wiz_interval_keyboard(current_interval: int = 0) -> InlineKeyboardMark
         rows.append(custom_row)
         
     row_save = [
-        InlineKeyboardButton("🚀 Зберегти нагадування!", callback_data="wiz_save", api_kwargs={'style': 'primary'}),
+        InlineKeyboardButton("◀️ Назад", callback_data="wizback_3"),
+        InlineKeyboardButton("🚀 Зберегти!", callback_data="wiz_save", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})
     ]
     rows.append(row_save)

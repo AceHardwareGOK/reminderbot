@@ -283,6 +283,38 @@ class BotHandlers:
             await query.edit_message_text("❌ *Створення нагадування скасовано\\.*", parse_mode='MarkdownV2')
             context.user_data.clear()
             return ConversationHandler.END
+
+        if data.startswith('wizback_'):
+            step_to = int(data.split('_')[1])
+            await query.answer()
+            if step_to == 1:
+                cancel_markup = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Скасувати", callback_data="wiz_cancel", api_kwargs={'style': 'danger'})]])
+                await query.edit_message_text(
+                    format_wizard_step(1, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=cancel_markup
+                )
+                return ConversationState.DESCRIBING_TASK.value
+            elif step_to == 2:
+                markup = build_wiz_days_keyboard(
+                    wiz_data['days'],
+                    wiz_data.get('is_one_time', False),
+                    wiz_data.get('everyday', False)
+                )
+                await query.edit_message_text(
+                    format_wizard_step(2, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+                return ConversationState.CHOOSING_DAYS.value
+            elif step_to == 3:
+                markup = build_wiz_times_keyboard(wiz_data['times'])
+                await query.edit_message_text(
+                    format_wizard_step(3, wiz_data),
+                    parse_mode='MarkdownV2',
+                    reply_markup=markup
+                )
+                return ConversationState.CHOOSING_TIMES.value
             
         # STEP 2: DAYS & TYPE
         if data.startswith('wizday_'):
