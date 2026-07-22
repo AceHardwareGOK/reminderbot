@@ -190,16 +190,20 @@ class BotHandlers:
         except Exception:
             pass
             
-        wiz_data = context.user_data.get('wizard_data', {})
-        valid_times, error = self.validator.validate_times(text)
+        wiz_data = context.user_data.setdefault('wizard_data', {'days': [], 'times': [], 'interval_minutes': 0})
+        valid_times, invalid_times = self.validator.parse_times(text)
         
         wiz_msg_id = context.user_data.get('wizard_message_id')
         
-        if error or not valid_times:
+        if invalid_times or not valid_times:
             return ConversationState.CHOOSING_TIMES.value
             
-        wiz_data['times'] = valid_times
-        markup = build_wiz_times_keyboard(valid_times)
+        # Combine custom entered times with existing selected times
+        existing = set(wiz_data.get('times', []))
+        existing.update(valid_times)
+        wiz_data['times'] = sorted(list(existing))
+        
+        markup = build_wiz_times_keyboard(wiz_data['times'])
         
         if wiz_msg_id and update.effective_chat:
             try:
