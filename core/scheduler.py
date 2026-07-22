@@ -323,6 +323,8 @@ class ReminderManager:
         if not self.application:
             return
         
+        from bot.ui_helpers import format_reminder_notification
+        
         reminder_code = reminder_time.replace(':', '')
         
         buttons = [
@@ -345,17 +347,12 @@ class ReminderManager:
         keyboard = [buttons]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        message_text = (
-            f"⏰ *Нагадування*\n\n"
-            f"📝 {task['description']}\n\n"
-            f"Час: {reminder_time}\n\n"
-            f"Будь ласка, познач як виконане, коли завершиш:"
-        )
+        message_text = format_reminder_notification(task, reminder_time)
         
         await self.application.bot.send_message(
             chat_id=user_id,
             text=message_text,
-            parse_mode='Markdown',
+            parse_mode='MarkdownV2',
             reply_markup=reply_markup
         )
 

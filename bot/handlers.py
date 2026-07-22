@@ -9,7 +9,11 @@ from core.database import DatabaseManager
 from core.scheduler import ReminderManager, DayOfWeek
 from utils.validators import Validator
 from .states import ConversationState
-from .keyboards import MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD
+from .keyboards import MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD, build_dashboard_keyboard
+from .ui_helpers import (
+    escape_md, format_task_card, format_progress_header, 
+    format_reminder_notification, get_task_type_str
+)
 
 logger = logging.getLogger(__name__)
 TZ = ZoneInfo(TIMEZONE)
@@ -68,11 +72,11 @@ class BotHandlers:
         
         await update.message.reply_text(
             f"🕒 *Час на сервері*\n\n"
-            f"📅 *Server Local:* `{server_now}`\n"
-            f"🌍 *UTC:* `{utc_now}`\n"
-            f"🇺🇦 *Configured ({TIMEZONE}):* `{tz_now}`\n"
-            f"ℹ️ *ZoneInfo:* `{TZ}`",
-            parse_mode='Markdown'
+            f"📅 *Server Local:* `{escape_md(server_now)}`\n"
+            f"🌍 *UTC:* `{escape_md(utc_now)}`\n"
+            f"🇺🇦 *Configured \\({escape_md(TIMEZONE)}\\):* `{escape_md(tz_now)}`\n"
+            f"ℹ️ *ZoneInfo:* `{escape_md(TZ)}`",
+            parse_mode='MarkdownV2'
         )
 
     async def refresh_scheduler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -119,7 +123,10 @@ class BotHandlers:
             return
         
         await update.message.reply_text(
-            "📝 Будь ласка, введи опис завдання:",
+            f"➕ *Створення нового нагадування*\n\n"
+            f"{format_progress_header(1, 4, 'Опис завдання')}\n\n"
+            f"📝 Введи опис або текст завдання:",
+            parse_mode='MarkdownV2',
             reply_markup=CANCEL_MARKUP
         )
         return ConversationState.DESCRIBING_TASK.value
@@ -136,7 +143,8 @@ class BotHandlers:
         
         if not description:
             await update.message.reply_text(
-                "⚠️ Опис не може бути порожнім. Спробуй ще раз:",
+                "⚠️ *Опис не може бути порожнім\\.* Спробуй ще раз:",
+                parse_mode='MarkdownV2',
                 reply_markup=CANCEL_MARKUP
             )
             return ConversationState.DESCRIBING_TASK.value
@@ -156,11 +164,13 @@ class BotHandlers:
         ]
         
         await update.message.reply_text(
-            "📅 Обери дні для нагадувань:\n"
-            "• Натискай на кнопки днів, щоб обрати/скасувати їх\n"
-            "• Натисни 'щодня' для щоденних нагадувань\n"
-            "• Натисни 'одноразове' для одноразового нагадування\n"
-            "• Натисни '✅ Підтвердити', коли закінчиш",
+            f"{format_progress_header(2, 4, 'Обираємо дні')}\n\n"
+            f"📅 *Обери дні для нагадування:*\n"
+            f"• Натискай на дні для вибору/скасування\n"
+            f"• Натисни 'щодня' для щоденних\n"
+            f"• Натисни 'одноразове' для разового\n"
+            f"• Натисни '✅ Підтвердити', коли закінчиш",
+            parse_mode='MarkdownV2',
             reply_markup=ReplyKeyboardMarkup(days_keyboard, resize_keyboard=True)
         )
         return ConversationState.CHOOSING_DAYS.value
@@ -521,7 +531,7 @@ class BotHandlers:
     # ==================== VIEW REMINDERS ====================
     
     async def view_reminders(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """View all user reminders"""
+        """View all user reminders using interactive dashboard pagination"""
         if not update.message or not update.effective_user:
             return
         
@@ -530,18 +540,22 @@ class BotHandlers:
         
         if not tasks:
             await update.message.reply_text(
-                "📭 У тебе ще немає нагадувань.\n"
-                "Натисни '➕ Створити нагадування', щоб додати!",
+                "📭 *У тебе ще немає нагадувань\\.*\n"
+                "Натисни '➕ Створити нагадування', щоб додати\\!",
+                parse_mode='MarkdownV2',
                 reply_markup=MAIN_MARKUP
             )
             return
         
-        for task in tasks:
-            await self._send_task_message(update, task)
+        # Show first task in interactive dashboard
+        first_task = tasks[0]
+        card_text = format_task_card(first_task, title=f"📋 *Панель нагадувань* \\(1/{len(tasks)}\\)")
+        markup = build_dashboard_keyboard(first_task['task_id'], 0, len(tasks))
         
         await update.message.reply_text(
-            f"👆 Всього активних нагадувань: {len(tasks)}",
-            reply_markup=MAIN_MARKUP
+            card_text,
+            parse_mode='MarkdownV2',
+            reply_markup=markup
         )
 
     # ==================== SNOOZE ALL ====================
@@ -560,49 +574,21 @@ class BotHandlers:
         ]
 
         await update.message.reply_text(
-            "⏸ На скільки часу відкласти *всі* нагадування?",
-            parse_mode='Markdown',
+            "⏸ *На скільки часу відкласти всі нагадування\\?*",
+            parse_mode='MarkdownV2',
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         )
 
     async def _send_task_message(self, update: Update, task: dict):
         """Send formatted task message"""
-        one_time_date = task.get('one_time_date')
-        if one_time_date:
-            try:
-                if len(one_time_date) > 10:
-                    date_dt = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
-                    days_str = f"Дата: {date_dt.strftime('%d.%m.%Y %H:%M')}"
-                else:
-                    date_dt = datetime.strptime(one_time_date, '%Y-%m-%d')
-                    days_str = f"Дата: {date_dt.strftime('%d.%m.%Y')}"
-            except ValueError:
-                days_str = f"Дата: {one_time_date}"
-        else:
-            days_str = ', '.join([DayOfWeek.from_index(d).full for d in task['days']]) if task['days'] else 'Не вказано'
-        times_str = ', '.join(task['times'])
-        task_type = "✅ Одноразове" if task.get('is_one_time') else "🔁 Повторюване"
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task['task_id']}", api_kwargs={'style': 'primary'}),
-                InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task['task_id']}", api_kwargs={'style': 'danger'})
-            ]
-        ]
-        
-        text = (
-            f"📝 *Завдання:* {task['description']}\n"
-            f"🏷️ *Тип:* {task_type}\n"
-            f"📅 *Дні:* {days_str}\n"
-            f"⏰ *Часи:* {times_str}\n"
-            f"⏱️ *Інтервал:* {task['interval_minutes']} хвилин{' (без повторень)' if task['interval_minutes'] == 0 else ''}"
-        )
+        card_text = format_task_card(task)
+        markup = build_dashboard_keyboard(task['task_id'], 0, 1)
         
         if update.message:
             await update.message.reply_text(
-                text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                card_text,
+                parse_mode='MarkdownV2',
+                reply_markup=markup
             )
 
     # ==================== DELETE REMINDERS ====================
@@ -660,13 +646,14 @@ class BotHandlers:
         if not query or not query.data:
             return
         
-        # Note: edit_ callbacks are handled by the ConversationHandler in main.py
-        # We only handle delete and done here
-        
         data = query.data
         
         try:
-            if data.startswith('delete_'):
+            if data == 'noop':
+                await query.answer()
+            elif data.startswith('page_'):
+                await self._handle_page(query, data)
+            elif data.startswith('delete_'):
                 await self._handle_delete(query, data)
             elif data.startswith('done_'):
                 await self._handle_done(query, data)
@@ -674,21 +661,44 @@ class BotHandlers:
                 await self._handle_snooze_single(query, data, context)
             elif data.startswith('snoozeopt_'):
                 await self._handle_snooze_option(query, data, context)
-            # edit_ is ignored here so it falls through to the ConversationHandler
-            # actually, if we register CallbackQueryHandler here, it might consume it?
-            # In PTB, if a handler handles the update, it stops propagation unless group is different.
-            # We should ensure the Edit ConversationHandler is registered BEFORE this fallback handler
-            # OR we explicitly ignore edit_ here.
             elif data.startswith('edit_'):
-                # Pass to let ConversationHandler handle it
-                # But wait, if this handler is triggered, it means it matched.
-                # If we return, does it pass to next handler? Only if we don't await query.answer()?
-                # No, handlers are checked in order.
-                # If we want Edit to be a Conversation, it should be added before this generic handler.
                 pass
         except Exception as e:
             logger.error(f"Error handling button: {e}")
-            await query.edit_message_text("❌ Виникла помилка. Спробуй ще раз.")
+            await query.answer("❌ Виникла помилка. Спробуй ще раз.", show_alert=True)
+
+    async def _handle_page(self, query, data: str):
+        """Handle dashboard pagination"""
+        try:
+            target_idx = int(data.split('_')[1])
+        except (IndexError, ValueError):
+            await query.answer()
+            return
+            
+        user_id = query.from_user.id
+        tasks = await self.db.get_user_tasks(user_id)
+        
+        if not tasks:
+            await query.edit_message_text(
+                "📭 *У тебе більше немає активних нагадувань\\.*",
+                parse_mode='MarkdownV2'
+            )
+            return
+            
+        target_idx = target_idx % len(tasks)
+        task = tasks[target_idx]
+        card_text = format_task_card(task, title=f"📋 *Панель нагадувань* \\({target_idx + 1}/{len(tasks)}\\)")
+        markup = build_dashboard_keyboard(task['task_id'], target_idx, len(tasks))
+        
+        try:
+            await query.edit_message_text(
+                card_text,
+                parse_mode='MarkdownV2',
+                reply_markup=markup
+            )
+        except Exception:
+            pass
+        await query.answer()
 
 
     async def _handle_delete(self, query, data: str):

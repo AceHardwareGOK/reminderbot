@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from core.scheduler import DayOfWeek
 from .states import ConversationState
 from .keyboards import CANCEL_MARKUP, MAIN_MARKUP
+from .ui_helpers import escape_md, format_task_card
 
 from zoneinfo import ZoneInfo
 from core.config import TIMEZONE
@@ -48,9 +49,9 @@ class EditHandlers:
         ]
         
         await query.edit_message_text(
-            f"✏️ Що ти хочеш змінити у завданні:\n*{task['description']}*?",
+            f"✏️ *Що ти хочеш змінити у завданні:*\n> {escape_md(task['description'])}",
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+            parse_mode='MarkdownV2'
         )
         return ConversationState.EDIT_SELECT_FIELD.value
 
