@@ -637,7 +637,7 @@ class BotHandlers:
         
         is_one_time = task.get('is_one_time', False)
         if is_one_time:
-            has_remaining = self.reminder_manager.has_remaining_jobs(user_id, task_id)
+            has_remaining = await self.reminder_manager.has_remaining_one_time_slots(user_id, task)
             if not has_remaining:
                 self.reminder_manager.cancel_task(user_id, task_id)
                 await self.db.delete_task(task_id)
@@ -734,7 +734,7 @@ class BotHandlers:
         
         if is_one_time:
             # Check if there are other future scheduled times for this one-time task
-            has_remaining = self.reminder_manager.has_remaining_jobs(user_id, task_id)
+            has_remaining = await self.reminder_manager.has_remaining_one_time_slots(user_id, task)
             if not has_remaining:
                 self.reminder_manager.cancel_task(user_id, task_id)
                 await self.db.delete_task(task_id)

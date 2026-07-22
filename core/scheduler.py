@@ -136,6 +136,35 @@ class ReminderManager:
                     return True
             return False
 
+    async def has_remaining_one_time_slots(self, user_id: int, task: Dict) -> bool:
+        """Check if a one-time task has any future uncompleted time slots left."""
+        if not task.get('is_one_time'):
+            return False
+            
+        task_id = task['task_id']
+        times = task.get('times', [])
+        one_time_date = task.get('one_time_date')
+        now = datetime.now(TZ)
+        
+        for time_str in times:
+            try:
+                hour, minute = map(int, time_str.split(':'))
+                if one_time_date and len(one_time_date) == 10:
+                    target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
+                    target_dt = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
+                else:
+                    target_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                    
+                rem_inst_id = f"{task_id}_{time_str.replace(':', '')}"
+                is_done = await self.db.is_reminder_completed(user_id, task_id, rem_inst_id)
+                
+                if target_dt > now and not is_done:
+                    return True
+            except Exception:
+                continue
+                
+        return False
+
     def _schedule_one_time_task(self, task: Dict):
         """Schedule a one-time task for all specified times"""
         user_id = task['user_id']
