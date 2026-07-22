@@ -113,10 +113,10 @@ def build_wiz_days_keyboard(selected_days: list, is_one_time: bool = False, ever
     
     row1, row2 = [], []
     for label, idx in days_map[:4]:
-        mark = "✅ " if idx in selected_days else ""
+        mark = "✅ " if (idx in selected_days and not is_one_time) else ""
         row1.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"wizday_{idx}"))
     for label, idx in days_map[4:]:
-        mark = "✅ " if idx in selected_days else ""
+        mark = "✅ " if (idx in selected_days and not is_one_time) else ""
         row2.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"wizday_{idx}"))
         
     everyday_mark = "✅ " if everyday else ""

@@ -336,11 +336,8 @@ class BotHandlers:
                     wiz_data['days'] = []
             elif action == 'onetime':
                 wiz_data['is_one_time'] = not wiz_data.get('is_one_time', False)
-                if wiz_data['is_one_time']:
-                    wiz_data['everyday'] = False
-                    wiz_data['days'] = [datetime.now(TZ).weekday()]
-                else:
-                    wiz_data['days'] = []
+                wiz_data['everyday'] = False
+                wiz_data['days'] = []
             elif action == 'confirm':
                 if not wiz_data.get('days') and not wiz_data.get('is_one_time') and not wiz_data.get('everyday'):
                     await query.answer("⚠️ Обери хоча б один день або тип нагадування!", show_alert=True)
