@@ -398,7 +398,10 @@ class BotHandlers:
             wiz_data['interval_minutes'] = interval_val
             await query.answer()
             markup = build_wiz_interval_keyboard(interval_val)
-            await query.edit_message_reply_markup(reply_markup=markup)
+            try:
+                await query.edit_message_reply_markup(reply_markup=markup)
+            except Exception:
+                pass
             return ConversationState.CHOOSING_INTERVAL.value
 
         elif data == 'wiz_save':
@@ -623,7 +626,7 @@ class BotHandlers:
         rem_inst_id, time_str = next_info
         
         # Stop active repeat tasks for this instance
-        await self.reminder_manager.stop_active_repeats(rem_inst_id)
+        self.reminder_manager.cancel_repeat_tasks(rem_inst_id)
         
         task = await self.db.get_task(task_id)
         if not task:

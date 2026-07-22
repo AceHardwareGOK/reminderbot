@@ -403,6 +403,10 @@ class ReminderManager:
                         task.cancel()
                 del self.active_repeat_tasks[reminder_instance_id]
 
+    def cancel_repeat_tasks(self, reminder_instance_id: str):
+        """Public method to cancel all active repeat tasks for a reminder instance"""
+        self._cancel_repeat_tasks(reminder_instance_id)
+
     def cancel_task(self, user_id: int, task_id: int):
         """Cancel all scheduled jobs and repeat tasks for a task"""
         with self._lock:
