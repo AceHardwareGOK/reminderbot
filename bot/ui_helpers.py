@@ -20,6 +20,27 @@ def format_progress_header(step: int, total_steps: int, step_name: str) -> str:
     bar = f"{filled}{empty}"
     return f"{bar} *Крок {step} з {total_steps}:* {escape_md(step_name)}"
 
+def format_one_time_date_display(raw_dates_str: str) -> str:
+    """Format single or comma-separated YYYY-MM-DD strings for display (e.g. 25.07.2026, 28.07.2026)."""
+    if not raw_dates_str:
+        return ""
+    from datetime import datetime
+    dates = [d.strip() for d in str(raw_dates_str).split(',') if d.strip()]
+    formatted = []
+    for d in dates:
+        try:
+            if len(d) == 10:
+                dt = datetime.strptime(d, '%Y-%m-%d')
+                formatted.append(dt.strftime('%d.%m.%Y'))
+            elif len(d) > 10:
+                dt = datetime.strptime(d, '%Y-%m-%d %H:%M')
+                formatted.append(dt.strftime('%d.%m.%Y %H:%M'))
+            else:
+                formatted.append(d)
+        except Exception:
+            formatted.append(d)
+    return ', '.join(formatted)
+
 def format_wizard_step(step: int, data: dict) -> str:
     """Render Rich MarkdownV2 text for Single-Message Wizard steps."""
     desc = escape_md(data.get('description', 'Не вказано'))
@@ -28,16 +49,18 @@ def format_wizard_step(step: int, data: dict) -> str:
         return (
             f"➕ *Створення нагадування*\n\n"
             f"{format_progress_header(1, 4, 'Опис завдання')}\n\n"
-            f"> ✍️ *Введи опис або текст нагадування у чат:* \n\n"
-            f"💡 _Наприклад: Пройти рев'ю коду, Купити молоко, Взяти ліки_"
+            f"> ✍️ *Введи опис або текст нагадування у чат:*\n\n"
+            f"**> 💡 _Приклади: Пройти рев'ю коду, Купити молоко, Взяти ліки_**"
         )
     
     elif step == 2:
+        date_info = f"\n📅 *Вказані дати:* `{escape_md(format_one_time_date_display(data['one_time_date']))}`" if data.get('one_time_date') else ""
         return (
             f"➕ *Створення нагадування*\n\n"
-            f"{format_progress_header(2, 4, 'Вибір днів / типу')}\n"
-            f"> 📌 *Опис:* {desc}\n\n"
-            f"📅 *Обери дні тижня або тип нагадування нижче:*"
+            f"{format_progress_header(2, 4, 'Вибір днів / типу / дати')}\n"
+            f"> 📌 *Опис:* {desc}{date_info}\n\n"
+            f"📅 *Обери дні тижня кнопками нижче або введи дату/дати у чат:*\n"
+            f"**> 💡 _Приклади для чату: `25.07.2026, 28.07.2026`, `25.07, 28.07` чи `сьогодні, завтра`_**"
         )
         
     elif step == 3:
@@ -47,7 +70,7 @@ def format_wizard_step(step: int, data: dict) -> str:
         one_time_date = data.get('one_time_date')
         
         if one_time_date:
-            days_str = escape_md(f"Дата: {one_time_date}")
+            days_str = escape_md(f"Дати: {format_one_time_date_display(one_time_date)}")
         elif is_one_time:
             days_str = escape_md("Одноразове")
         elif everyday or len(days) == 7:
@@ -66,9 +89,10 @@ def format_wizard_step(step: int, data: dict) -> str:
             f"➕ *Створення нагадування*\n\n"
             f"{format_progress_header(3, 4, 'Вибір часу')}\n"
             f"> 📌 *Опис:* {desc}\n"
-            f"📅 *Розклад:* {days_str}\n"
-            f"⏰ *Обрані часи:* `{times_str}`\n\n"
-            f"⏰ *Обери популярні години нижче або введи свій час у чат \\(наприклад, 09:30, 18:00\\):*"
+            f"> 📅 *Розклад:* {days_str}\n"
+            f"> ⏰ *Обрані часи:* `{times_str}`\n\n"
+            f"⏰ *Обери популярні години нижче або введи свій час у чат:*\n"
+            f"**> 💡 _Приклади для чату: `09:30`, `18:00` чи `09:00, 15:00, 21:00`_**"
         )
         
     elif step == 4:
@@ -78,7 +102,7 @@ def format_wizard_step(step: int, data: dict) -> str:
         one_time_date = data.get('one_time_date')
         
         if one_time_date:
-            days_str = escape_md(f"Дата: {one_time_date}")
+            days_str = escape_md(f"Дати: {format_one_time_date_display(one_time_date)}")
         elif everyday or len(days) == 7:
             days_str = escape_md("Щодня")
         elif days:
@@ -99,28 +123,29 @@ def format_wizard_step(step: int, data: dict) -> str:
             f"➕ *Створення нагадування*\n\n"
             f"{format_progress_header(4, 4, 'Перевірка та збереження')}\n\n"
             f"> 📌 *Опис:* {desc}\n"
-            f"🏷️ *Тип:* {task_type}\n"
-            f"📅 *Розклад:* {days_str}\n"
-            f"⏰ *Час:* `{times_str}`\n"
-            f"⏱️ *Інтервал:* `{interval_str}`\n\n"
-            f"⏱️ *Обери популярний інтервал нижче або введи свій у чат \\(наприклад, 45, 90 чи 1:30\\):*\n"
+            f"> 🏷️ *Тип:* {task_type}\n"
+            f"> 📅 *Розклад:* {days_str}\n"
+            f"> ⏰ *Час:* `{times_str}`\n"
+            f"> ⏱️ *Інтервал:* `{interval_str}`\n\n"
+            f"⏱️ *Обери інтервал кнопкою нижче або введи свій у чат:*\n"
+            f"**> 💡 _Приклади для чату: `45`, `90` або `1:30`\\._**\n\n"
             f"✨ _Після цього натисни кнопку збереження нижче\\!_"
         )
 
-def build_wiz_days_keyboard(selected_days: list, is_one_time: bool = False, everyday: bool = False) -> InlineKeyboardMarkup:
+def build_wiz_days_keyboard(selected_days: list, is_one_time: bool = False, everyday: bool = False, one_time_date: str = None) -> InlineKeyboardMarkup:
     """Build interactive Inline Keyboard for selecting days in wizard."""
     days_map = [("Пн", 0), ("Вт", 1), ("Ср", 2), ("Чт", 3), ("Пт", 4), ("Сб", 5), ("Нд", 6)]
     
     row1, row2 = [], []
     for label, idx in days_map[:4]:
-        mark = "✅ " if (idx in selected_days and not is_one_time) else ""
+        mark = "✅ " if (idx in selected_days and not is_one_time and not one_time_date) else ""
         row1.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"wizday_{idx}"))
     for label, idx in days_map[4:]:
-        mark = "✅ " if (idx in selected_days and not is_one_time) else ""
+        mark = "✅ " if (idx in selected_days and not is_one_time and not one_time_date) else ""
         row2.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"wizday_{idx}"))
         
-    everyday_mark = "✅ " if everyday else ""
-    onetime_mark = "✅ " if is_one_time else ""
+    everyday_mark = "✅ " if (everyday and not one_time_date) else ""
+    onetime_mark = "✅ " if (is_one_time or one_time_date) else ""
     
     row_mode = [
         InlineKeyboardButton(f"{everyday_mark}🔁 Щодня", callback_data="wizday_everyday"),
@@ -228,3 +253,71 @@ def format_reminder_notification(task: Dict, reminder_time: str) -> str:
         f"💡 _Познач як виконане або відклади, коли будеш готовий:_"
     )
     return card
+
+def format_snooze_card(task: Dict, time_display: str) -> str:
+    """Format sleek MarkdownV2 card for Snooze flow."""
+    desc = escape_md(task.get('description', ''))
+    time_esc = escape_md(time_display)
+    return (
+        f"⏸ *Відкладення нагадування*\n\n"
+        f"> 📌 *Опис:* {desc}\n"
+        f"🕒 *Початковий час:* `{time_esc}`\n\n"
+        f"⏰ *Обери інтервал кнопкою нижче або просто введи свій час у чат:*\n"
+        f"**> 💡 _Приклади для чату: `15`, `45`, `90` або `1:30`\\._**"
+    )
+
+def build_snooze_keyboard(task_id: int, time_part: str) -> InlineKeyboardMarkup:
+    """Build inline keyboard for quick snooze interval selection."""
+    row1 = [
+        InlineKeyboardButton("15 хв", callback_data=f"snoozeopt_{task_id}_{time_part}_15"),
+        InlineKeyboardButton("30 хв", callback_data=f"snoozeopt_{task_id}_{time_part}_30"),
+        InlineKeyboardButton("1 год", callback_data=f"snoozeopt_{task_id}_{time_part}_60"),
+        InlineKeyboardButton("2 год", callback_data=f"snoozeopt_{task_id}_{time_part}_120")
+    ]
+    row2 = [
+        InlineKeyboardButton("❌ Скасувати", callback_data=f"snoozeopt_{task_id}_{time_part}_cancel", api_kwargs={'style': 'danger'})
+    ]
+    return InlineKeyboardMarkup([row1, row2])
+
+def format_snooze_all_card() -> str:
+    """Format card for Snooze All flow."""
+    return (
+        f"⏸ *Відкладення всіх нагадувань*\n\n"
+        f"⏰ *Обери тривалість кнопкою або просто введи свій інтервал у чат:*\n"
+        f"**> 💡 _Приклади для чату: `30`, `60`, `120` або `2:00`\\._**"
+    )
+
+def build_snooze_all_keyboard() -> InlineKeyboardMarkup:
+    """Build inline keyboard for Snooze All."""
+    row1 = [
+        InlineKeyboardButton("30 хв", callback_data="snoozeall_30"),
+        InlineKeyboardButton("1 год", callback_data="snoozeall_60"),
+        InlineKeyboardButton("2 год", callback_data="snoozeall_120"),
+        InlineKeyboardButton("3 год", callback_data="snoozeall_180")
+    ]
+    row2 = [
+        InlineKeyboardButton("❌ Скасувати", callback_data="snoozeall_cancel", api_kwargs={'style': 'danger'})
+    ]
+    return InlineKeyboardMarkup([row1, row2])
+
+def build_edit_interval_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """Build Inline Keyboard for interval selection in edit flow."""
+    row1 = [
+        InlineKeyboardButton("Без повторів", callback_data=f"editint_{task_id}_0"),
+        InlineKeyboardButton("15 хв", callback_data=f"editint_{task_id}_15"),
+        InlineKeyboardButton("30 хв", callback_data=f"editint_{task_id}_30")
+    ]
+    row2 = [
+        InlineKeyboardButton("1 год", callback_data=f"editint_{task_id}_60"),
+        InlineKeyboardButton("2 год", callback_data=f"editint_{task_id}_120"),
+        InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})
+    ]
+    return InlineKeyboardMarkup([row1, row2])
+
+def build_edit_times_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """Build Inline Keyboard for time selection in edit flow."""
+    presets = ["08:00", "09:00", "12:00", "15:00", "18:00", "21:00"]
+    row1 = [InlineKeyboardButton(t, callback_data=f"edittime_{task_id}_{t}") for t in presets[:3]]
+    row2 = [InlineKeyboardButton(t, callback_data=f"edittime_{task_id}_{t}") for t in presets[3:]]
+    row3 = [InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})]
+    return InlineKeyboardMarkup([row1, row2, row3])

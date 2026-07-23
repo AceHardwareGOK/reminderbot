@@ -5,7 +5,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from core.scheduler import DayOfWeek
 from .states import ConversationState
 from .keyboards import CANCEL_MARKUP, MAIN_MARKUP
-from .ui_helpers import escape_md, format_task_card
+from .ui_helpers import escape_md, format_task_card, build_edit_interval_keyboard, build_edit_times_keyboard
 
 from zoneinfo import ZoneInfo
 from core.config import TIMEZONE
@@ -49,7 +49,7 @@ class EditHandlers:
         ]
         
         await query.edit_message_text(
-            f"✏️ *Що ти хочеш змінити у завданні:*\n> {escape_md(task['description'])}",
+            f"✏️ *Що ти хочеш змінити у завданні:*\n> 📌 *{escape_md(task['description'])}*",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='MarkdownV2'
         )
@@ -63,7 +63,7 @@ class EditHandlers:
         data = query.data
         
         if data == 'edit_cancel':
-            await query.edit_message_text("✏️ Редагування скасовано.")
+            await query.edit_message_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2')
             context.user_data.clear()
             return ConversationHandler.END
             
@@ -79,39 +79,35 @@ class EditHandlers:
             return ConversationState.EDIT_SELECT_FIELD.value
             
         context.user_data['edit_field'] = field
+        task_id = context.user_data.get('edit_task_id')
         
         if field == 'description':
             await query.message.reply_text(
-                "📝 Введи новий опис завдання:",
-                reply_markup=CANCEL_MARKUP
+                "📝 *Введи новий опис завдання у чат:*",
+                reply_markup=CANCEL_MARKUP,
+                parse_mode='MarkdownV2'
             )
             return ConversationState.EDIT_ENTER_VALUE.value
             
         elif field == 'times':
             await query.message.reply_text(
-                "⏰ Введи нові часи (через кому, наприклад 09:00, 18:00):",
-                reply_markup=CANCEL_MARKUP
+                "⏰ *Обери час кнопкою нижче або введи новий час у чат:*\n"
+                "**> 💡 _Приклади для чату: `09:30`, `18:00` чи `09:00, 15:00`_**",
+                reply_markup=build_edit_times_keyboard(task_id),
+                parse_mode='MarkdownV2'
             )
             return ConversationState.EDIT_ENTER_VALUE.value
             
         elif field == 'interval':
-            interval_keyboard = [
-                ['не повторювати'],
-                ['5 хвилин', '10 хвилин'],
-                ['15 хвилин', '30 хвилин'],
-                ['1 година', '2 години'],
-                ['Власний інтервал'],
-                ['🏠 Скасувати']
-            ]
             await query.message.reply_text(
-                "⏱️ Обери новий інтервал:",
-                reply_markup=ReplyKeyboardMarkup(interval_keyboard, resize_keyboard=True)
+                "⏱️ *Обери новий інтервал кнопкою нижче або введи свій у чат:*\n"
+                "**> 💡 _Приклади для чату: `15`, `45`, `90` чи `1:30`_**",
+                reply_markup=build_edit_interval_keyboard(task_id),
+                parse_mode='MarkdownV2'
             )
             return ConversationState.EDIT_ENTER_VALUE.value
             
         elif field == 'type':
-            # For type change, we reuse the day selection logic but simplified
-            # We'll just ask for days or one-time
             days_keyboard = [
                 ['пн', 'вт', 'ср'],
                 ['чт', 'пт', 'сб'],
@@ -120,7 +116,6 @@ class EditHandlers:
                 ['✅ Підтвердити', '🏠 Скасувати']
             ]
             
-            # Pre-select current days if applicable
             task = context.user_data.get('edit_task', {})
             current_days = task.get('days', [])
             if current_days:
@@ -129,19 +124,65 @@ class EditHandlers:
                 context.user_data['edit_days'] = []
                 
             await query.message.reply_text(
-                "📅 Зміни дні нагадування:",
-                reply_markup=ReplyKeyboardMarkup(days_keyboard, resize_keyboard=True)
+                "📅 *Зміни дні нагадування:*",
+                reply_markup=ReplyKeyboardMarkup(days_keyboard, resize_keyboard=True),
+                parse_mode='MarkdownV2'
             )
             return ConversationState.EDIT_CHOOSING_DAYS.value
 
+    async def edit_callback_value(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle inline button callback queries during EDIT_ENTER_VALUE phase."""
+        query = update.callback_query
+        if not query or not query.data:
+            return ConversationState.EDIT_ENTER_VALUE.value
+        
+        await query.answer()
+        data = query.data
+        
+        if data == 'edit_cancel':
+            await query.edit_message_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2')
+            context.user_data.clear()
+            return ConversationHandler.END
+
+        task_id = context.user_data.get('edit_task_id')
+        if not task_id:
+            await query.edit_message_text("❌ Завдання не знайдено.")
+            context.user_data.clear()
+            return ConversationHandler.END
+
+        updates = {}
+        if data.startswith('editint_'):
+            try:
+                val = int(data.split('_')[2])
+                updates['interval_minutes'] = val
+            except (IndexError, ValueError):
+                await query.answer("❌ Помилка даних", show_alert=True)
+                return ConversationState.EDIT_ENTER_VALUE.value
+
+        elif data.startswith('edittime_'):
+            time_val = data.split('_')[2]
+            updates['times'] = [time_val]
+
+        if updates:
+            await self.db.update_task(task_id, **updates)
+            task = await self.db.get_task(task_id)
+            self.reminder_manager.cancel_task(task['user_id'], task_id)
+            self.reminder_manager.schedule_task(task)
+
+            await query.edit_message_text("✅ *Завдання успішно оновлено\\!*", parse_mode='MarkdownV2')
+            context.user_data.clear()
+            return ConversationHandler.END
+
+        return ConversationState.EDIT_ENTER_VALUE.value
+
     async def edit_enter_value(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle new value input"""
+        """Handle new value input via text chat message."""
         if not update.message or not update.message.text:
             return ConversationHandler.END
             
         text = update.message.text.strip()
-        if text == '🏠 Скасувати':
-            await update.message.reply_text("✏️ Редагування скасовано.", reply_markup=MAIN_MARKUP)
+        if text in ('🏠 Скасувати', '❌ Скасувати', 'Скасувати'):
+            await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=MAIN_MARKUP)
             context.user_data.clear()
             return ConversationHandler.END
             
@@ -157,35 +198,23 @@ class EditHandlers:
             valid_times, invalid_times = self.validator.parse_times(text)
             if invalid_times:
                 await update.message.reply_text(
-                    f"⚠️ Неправильний формат: {', '.join(invalid_times)}. Спробуй ще раз:",
+                    f"⚠️ *Неправильний формат:* `{escape_md(', '.join(invalid_times))}`\\.\nСпробуй ще раз:",
+                    parse_mode='MarkdownV2',
                     reply_markup=CANCEL_MARKUP
                 )
                 return ConversationState.EDIT_ENTER_VALUE.value
             if not valid_times:
-                await update.message.reply_text("⚠️ Введи хоча б один час.", reply_markup=CANCEL_MARKUP)
+                await update.message.reply_text("⚠️ Введи хоча б один час\\.", parse_mode='MarkdownV2', reply_markup=CANCEL_MARKUP)
                 return ConversationState.EDIT_ENTER_VALUE.value
             updates['times'] = valid_times
             
         elif field == 'interval':
-            if text == 'не повторювати':
+            if text.lower() == 'не повторювати':
                 val = 0
-            elif text == 'Власний інтервал':
-                await update.message.reply_text("⏱️ Введи інтервал у хвилинах (1-1440) або години:хвилини:", reply_markup=CANCEL_MARKUP)
-                return ConversationState.EDIT_ENTER_VALUE.value
             else:
-                interval_map = {
-                    '5 хвилин': 5, '10 хвилин': 10, '15 хвилин': 15,
-                    '30 хвилин': 30, '1 година': 60, '2 години': 120
-                }
-                val = interval_map.get(text)
-                if val is None:
-                    val = self.validator.parse_interval(text)
-                    if val is None:
-                        await update.message.reply_text("⚠️ Введи число або години:хвилини.", reply_markup=CANCEL_MARKUP)
-                        return ConversationState.EDIT_ENTER_VALUE.value
-                
-                if not self.validator.validate_interval(val):
-                    await update.message.reply_text("⚠️ Інтервал 1-1440 хвилин.", reply_markup=CANCEL_MARKUP)
+                val = self.validator.parse_interval(text)
+                if val is None or not self.validator.validate_interval(val):
+                    await update.message.reply_text("⚠️ *Введи інтервал у хвилинах \\(1-1440\\) або години:хвилини \\(наприклад: 45 чи 1:30\\)*", parse_mode='MarkdownV2', reply_markup=CANCEL_MARKUP)
                     return ConversationState.EDIT_ENTER_VALUE.value
             updates['interval_minutes'] = val
 
@@ -199,7 +228,8 @@ class EditHandlers:
             self.reminder_manager.schedule_task(task)
             
             await update.message.reply_text(
-                "✅ Завдання успішно оновлено!",
+                "✅ *Завдання успішно оновлено\\!*",
+                parse_mode='MarkdownV2',
                 reply_markup=MAIN_MARKUP
             )
             context.user_data.clear()
@@ -213,22 +243,20 @@ class EditHandlers:
             return ConversationHandler.END
             
         text = update.message.text.strip()
-        if text == '🏠 Скасувати':
-            await update.message.reply_text("✏️ Редагування скасовано.", reply_markup=MAIN_MARKUP)
+        if text in ('🏠 Скасувати', '❌ Скасувати', 'Скасувати'):
+            await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=MAIN_MARKUP)
             context.user_data.clear()
             return ConversationHandler.END
             
         if text == 'одноразове':
-            # Show options for one-time reminder: day of week or specific date
             from datetime import datetime
             now = datetime.now(TZ)
             current_day = now.weekday()
             
-            # Get next occurrence of each day of week
             next_days = []
             seen_days = set()
             i = 0
-            while len(seen_days) < 7 and i < 14:  # Limit to 14 days ahead
+            while len(seen_days) < 7 and i < 14:
                 day_index = (current_day + i) % 7
                 if day_index not in seen_days:
                     seen_days.add(day_index)
@@ -239,8 +267,7 @@ class EditHandlers:
                         elif i == 1:
                             day_label = f"{day.full} (завтра)"
                         else:
-                            # Plural form for days
-                            if i % 10 == 2 or i % 10 == 3 or i % 10 == 4:
+                            if i % 10 in (2, 3, 4):
                                 day_label = f"{day.full} (через {i} дні)"
                             else:
                                 day_label = f"{day.full} (через {i} днів)"
@@ -258,12 +285,11 @@ class EditHandlers:
             day_keyboard.append(['🏠 Скасувати'])
             
             await update.message.reply_text(
-                "📅 Одноразове нагадування\n\n"
+                "📅 *Одноразове нагадування*\n\n"
                 "Обери найближчий день тижня або вкажи конкретну дату:",
+                parse_mode='MarkdownV2',
                 reply_markup=ReplyKeyboardMarkup(day_keyboard, resize_keyboard=True)
             )
-            
-            
             return ConversationState.EDIT_CHOOSING_ONE_TIME_DATE.value
         
         return await self._handle_choosing_days_logic(update, context, text)
@@ -275,75 +301,68 @@ class EditHandlers:
             
         text = update.message.text.strip()
         
-        if text == '🏠 Скасувати':
-            await update.message.reply_text("✏️ Редагування скасовано.", reply_markup=MAIN_MARKUP)
+        if text in ('🏠 Скасувати', '❌ Скасувати', 'Скасувати'):
+            await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=MAIN_MARKUP)
             context.user_data.clear()
             return ConversationHandler.END
             
         if text == '📅 Вказати конкретну дату':
             await update.message.reply_text(
-                "📅 Введи дату (ДД.ММ.РРРР) або дату і час (ДД.ММ.РРРР ГГ:ХХ):",
+                "📅 *Введи дату \\(ДД.ММ.РРРР\\) або дату і час \\(ДД.ММ.РРРР ГГ:ХХ\\):*",
+                parse_mode='MarkdownV2',
                 reply_markup=CANCEL_MARKUP
             )
             context.user_data['edit_field'] = 'one_time_date'
             return ConversationState.EDIT_ENTER_VALUE.value
             
-        # Check if day of week was selected
         day_options = context.user_data.get('one_time_day_options', {})
         if text in day_options:
             selected_day = day_options[text]
             task_id = context.user_data.get('edit_task_id')
             
-            # Update to one-time with this day
-            # We need to clear one_time_date to rely on days logic for one-time
             await self.db.update_task(task_id, days=[selected_day], is_one_time=True, one_time_date=None)
             
-            # Reschedule
             task = await self.db.get_task(task_id)
             self.reminder_manager.cancel_task(task['user_id'], task_id)
             self.reminder_manager.schedule_task(task)
             
             day = DayOfWeek.from_index(selected_day)
+            day_name = day.full if day else 'обраний день'
             await update.message.reply_text(
-                f"✅ Оновлено! Нагадування спрацює в {day.full if day else 'обраний день'}.",
+                f"✅ *Оновлено\\! Нагадування спрацює в {escape_md(day_name)}\\.*",
+                parse_mode='MarkdownV2',
                 reply_markup=MAIN_MARKUP
             )
             context.user_data.clear()
             return ConversationHandler.END
             
         await update.message.reply_text(
-            "⚠️ Будь ласка, обери день тижня або вкажи конкретну дату.",
+            "⚠️ *Будь ласка, обери день тижня або вкажи конкретну дату\\.*",
+            parse_mode='MarkdownV2',
             reply_markup=CANCEL_MARKUP
         )
         return ConversationState.EDIT_CHOOSING_ONE_TIME_DATE.value
 
-    async def edit_choosing_days_continued(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Splitting the block from edit_choosing_one_time_date
-        pass
-
     async def _handle_choosing_days_logic(self, update, context, text):
         if text == 'щодня':
             context.user_data['edit_days'] = list(range(7))
-            await update.message.reply_text("✅ Обрано щоденно. Натисни '✅ Підтвердити'.")
+            await update.message.reply_text("✅ *Обрано щоденно\\. Натисни '✅ Підтвердити'\\.*", parse_mode='MarkdownV2')
             return ConversationState.EDIT_CHOOSING_DAYS.value
             
         if text == '✅ Підтвердити':
             days = context.user_data.get('edit_days', [])
             if not days:
-                await update.message.reply_text("⚠️ Обери хоча б один день.")
+                await update.message.reply_text("⚠️ *Обери хоча б один день\\.*", parse_mode='MarkdownV2')
                 return ConversationState.EDIT_CHOOSING_DAYS.value
                 
             task_id = context.user_data.get('edit_task_id')
-            
-            # Update to recurring with these days
             await self.db.update_task(task_id, days=days, is_one_time=False, one_time_date=None)
             
-            # Reschedule
             task = await self.db.get_task(task_id)
             self.reminder_manager.cancel_task(task['user_id'], task_id)
             self.reminder_manager.schedule_task(task)
             
-            await update.message.reply_text("✅ Дні оновлено!", reply_markup=MAIN_MARKUP)
+            await update.message.reply_text("✅ *Дні оновлено\\!*", parse_mode='MarkdownV2', reply_markup=MAIN_MARKUP)
             context.user_data.clear()
             return ConversationHandler.END
             
@@ -358,7 +377,7 @@ class EditHandlers:
             context.user_data['edit_days'] = current
             
             day_names = [DayOfWeek.from_index(i).full for i in current]
-            msg = f"✅ Обрані дні: {', '.join(day_names)}" if current else "Ще не обрано жодного дня."
-            await update.message.reply_text(msg)
+            msg = f"✅ *Обрані дні:* {escape_md(', '.join(day_names))}" if current else "Ще не обрано жодного дня."
+            await update.message.reply_text(msg, parse_mode='MarkdownV2')
             
         return ConversationState.EDIT_CHOOSING_DAYS.value

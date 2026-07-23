@@ -72,6 +72,7 @@ def main():
                 CallbackQueryHandler(edit_handlers.edit_select_field, pattern='^edit_')
             ],
             ConversationState.EDIT_ENTER_VALUE.value: [
+                CallbackQueryHandler(edit_handlers.edit_callback_value, pattern=r'^(editint_|edittime_|edit_cancel)'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, edit_handlers.edit_enter_value)
             ],
             ConversationState.EDIT_CHOOSING_DAYS.value: [

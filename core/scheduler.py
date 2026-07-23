@@ -137,31 +137,29 @@ class ReminderManager:
             return False
 
     async def has_remaining_one_time_slots(self, user_id: int, task: Dict) -> bool:
-        """Check if a one-time task has any future uncompleted time slots left."""
+        """Check if a one-time task has any uncompleted time slots left."""
         if not task.get('is_one_time'):
             return False
             
         task_id = task['task_id']
         times = task.get('times', [])
         one_time_date = task.get('one_time_date')
-        now = datetime.now(TZ)
-        
+
+        if one_time_date:
+            dates = [d.strip() for d in one_time_date.split(',') if d.strip()]
+            for d in dates:
+                for time_str in times:
+                    date_clean = d[:10].replace('-', '')
+                    time_clean = time_str.replace(':', '')
+                    rem_inst_id = f"{task_id}_{date_clean}_{time_clean}"
+                    if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                        return True
+            return False
+
         for time_str in times:
-            try:
-                hour, minute = map(int, time_str.split(':'))
-                if one_time_date and len(one_time_date) == 10:
-                    target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
-                    target_dt = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
-                else:
-                    target_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    
-                rem_inst_id = f"{task_id}_{time_str.replace(':', '')}"
-                is_done = await self.db.is_reminder_completed(user_id, task_id, rem_inst_id)
-                
-                if target_dt > now and not is_done:
-                    return True
-            except Exception:
-                continue
+            rem_inst_id = f"{task_id}_{time_str.replace(':', '')}"
+            if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                return True
                 
         return False
 
@@ -176,37 +174,42 @@ class ReminderManager:
         now = datetime.now(TZ)
         
         if one_time_date:
-            try:
-                for time_str in times:
-                    if len(one_time_date) == 10:  # YYYY-MM-DD
-                        target_date = datetime.strptime(one_time_date, '%Y-%m-%d')
-                        hour, minute = map(int, time_str.split(':'))
-                        target_datetime = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
-                    else:  # YYYY-MM-DD HH:MM
-                        target_datetime = datetime.strptime(one_time_date, '%Y-%m-%d %H:%M')
-                        target_datetime = target_datetime.replace(tzinfo=TZ)
-                        time_str = target_datetime.strftime('%H:%M')
-                    
-                    if target_datetime <= now:
-                        logger.info(f"One-time task {task_id} time {time_str} is in the past, triggering immediately")
-                        asyncio.create_task(self._send_reminder_async(user_id, task, time_str))
-                    else:
-                        job_id = f"reminder_{user_id}_{task_id}_date_{time_str.replace(':', '')}"
-                        self.scheduler.add_job(
-                            func=self._send_reminder_async,
-                            trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
-                            id=job_id,
-                            args=[user_id, task, time_str],
-                            replace_existing=True,
-                            misfire_grace_time=300
-                        )
+            dates = [d.strip() for d in one_time_date.split(',') if d.strip()]
+            for d in dates:
+                try:
+                    for time_str in times:
+                        if len(d) == 10:  # YYYY-MM-DD
+                            target_date = datetime.strptime(d, '%Y-%m-%d')
+                            hour, minute = map(int, time_str.split(':'))
+                            target_datetime = target_date.replace(hour=hour, minute=minute, tzinfo=TZ)
+                        else:  # YYYY-MM-DD HH:MM
+                            target_datetime = datetime.strptime(d, '%Y-%m-%d %H:%M')
+                            target_datetime = target_datetime.replace(tzinfo=TZ)
+                            time_str = target_datetime.strftime('%H:%M')
                         
-                        instance_id = f"date_{time_str.replace(':', '')}"
-                        with self._lock:
-                            self.scheduler_jobs[user_id][task_id][instance_id] = job_id
-                return
-            except ValueError as e:
-                logger.error(f"Invalid date format for one-time task: {e}")
+                        date_clean = d[:10].replace('-', '')
+                        time_clean = time_str.replace(':', '')
+                        rem_inst_id = f"{task_id}_{date_clean}_{time_clean}"
+
+                        if target_datetime <= now:
+                            logger.info(f"One-time task {task_id} date {d} time {time_str} is in the past, triggering immediately")
+                            asyncio.create_task(self._send_reminder_async(user_id, task, time_str))
+                        else:
+                            job_id = f"reminder_{user_id}_{task_id}_date_{date_clean}_{time_clean}"
+                            self.scheduler.add_job(
+                                func=self._send_reminder_async,
+                                trigger=DateTrigger(run_date=target_datetime, timezone=TZ),
+                                id=job_id,
+                                args=[user_id, task, time_str],
+                                replace_existing=True,
+                                misfire_grace_time=300
+                            )
+                            
+                            with self._lock:
+                                self.scheduler_jobs[user_id][task_id][rem_inst_id] = job_id
+                except ValueError as e:
+                    logger.error(f"Invalid date format for one-time task date {d}: {e}")
+            return
         
         # Fallback logic for days if no specific date
         current_day = now.weekday()
@@ -474,7 +477,7 @@ class ReminderManager:
 
     async def get_next_reminder_instance(self, user_id: int, task_id: int) -> Optional[Tuple[str, str]]:
         """
-        Find the next upcoming reminder instance for a task.
+        Find the current active/uncompleted or next upcoming reminder instance for a task.
         Returns Tuple[reminder_instance_id, time_str] or None.
         """
         task = await self.db.get_task(task_id)
@@ -485,9 +488,19 @@ class ReminderManager:
         if not times:
             return None
             
+        now = datetime.now(TZ)
+        now_time_str = now.strftime('%H:%M')
+
+        # 1. Check if there is an uncompleted time slot TODAY that has already passed or arrived
+        passed_times = [t for t in times if t <= now_time_str]
+        passed_times.sort(reverse=True)
+        for t in passed_times:
+            rem_inst_id = f"{task_id}_{t.replace(':', '')}"
+            if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                return rem_inst_id, t
+
+        # 2. Check active jobs in scheduler for upcoming times
         upcoming = []
-        
-        # Check active jobs in scheduler
         with self._lock:
             user_jobs = self.scheduler_jobs.get(user_id, {}).get(task_id, {})
             for instance_key, job_id in user_jobs.items():
@@ -507,6 +520,11 @@ class ReminderManager:
             valid_upcoming.sort(key=lambda x: x[0])
             return valid_upcoming[0][1], valid_upcoming[0][2]
             
-        # Fallback: pick first time from task['times']
+        # Fallback: pick first uncompleted time from task['times']
+        for t in times:
+            rem_inst_id = f"{task_id}_{t.replace(':', '')}"
+            if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                return rem_inst_id, t
+
         first_time = times[0]
         return f"{task_id}_{first_time.replace(':', '')}", first_time

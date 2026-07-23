@@ -14,7 +14,9 @@ from .ui_helpers import (
     escape_md, format_task_card, format_progress_header, 
     format_reminder_notification, get_task_type_str,
     format_wizard_step, build_wiz_days_keyboard,
-    build_wiz_times_keyboard, build_wiz_interval_keyboard
+    build_wiz_times_keyboard, build_wiz_interval_keyboard,
+    format_snooze_card, build_snooze_keyboard,
+    format_snooze_all_card, build_snooze_all_keyboard
 )
 
 logger = logging.getLogger(__name__)
@@ -171,12 +173,56 @@ class BotHandlers:
         return ConversationState.CHOOSING_DAYS.value
 
     async def get_days(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Fallback for text input in days step"""
-        if update.message:
-            try:
-                await update.message.delete()
-            except Exception:
-                pass
+        """Handle custom date or day text input in step 2 of wizard"""
+        if not update.message or not update.message.text:
+            return ConversationState.CHOOSING_DAYS.value
+
+        text = update.message.text.strip()
+        try:
+            await update.message.delete()
+        except Exception:
+            pass
+
+        if text in ('🏠 Скасувати', '/cancel'):
+            return await self._cancel_wizard(update, context)
+
+        wiz_data = context.user_data.setdefault('wizard_data', {'days': [], 'times': [], 'interval_minutes': 0})
+        date_str, time_str = self.validator.parse_date(text)
+
+        wiz_msg_id = context.user_data.get('wizard_message_id')
+
+        if date_str:
+            wiz_data['one_time_date'] = date_str
+            wiz_data['is_one_time'] = True
+            wiz_data['everyday'] = False
+            wiz_data['days'] = []
+
+            if time_str and time_str not in wiz_data['times']:
+                wiz_data['times'].append(time_str)
+
+            if wiz_data['times']:
+                markup = build_wiz_interval_keyboard(wiz_data.get('interval_minutes', 0))
+                next_step = 4
+                next_state = ConversationState.CHOOSING_INTERVAL.value
+            else:
+                markup = build_wiz_times_keyboard(wiz_data['times'])
+                next_step = 3
+                next_state = ConversationState.CHOOSING_TIMES.value
+
+            if wiz_msg_id and update.effective_chat:
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=update.effective_chat.id,
+                        message_id=wiz_msg_id,
+                        text=format_wizard_step(next_step, wiz_data),
+                        parse_mode='MarkdownV2',
+                        reply_markup=markup
+                    )
+                except Exception as e:
+                    logger.error(f"Error editing wizard msg: {e}")
+
+            return next_state
+
         return ConversationState.CHOOSING_DAYS.value
 
     async def get_times(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -299,7 +345,8 @@ class BotHandlers:
                 markup = build_wiz_days_keyboard(
                     wiz_data['days'],
                     wiz_data.get('is_one_time', False),
-                    wiz_data.get('everyday', False)
+                    wiz_data.get('everyday', False),
+                    wiz_data.get('one_time_date')
                 )
                 await query.edit_message_text(
                     format_wizard_step(2, wiz_data),
@@ -316,7 +363,7 @@ class BotHandlers:
                 )
                 return ConversationState.CHOOSING_TIMES.value
             
-        # STEP 2: DAYS & TYPE
+        # STEP 2: DAYS & TYPE & DATE
         if data.startswith('wizday_'):
             action = data.split('_')[1]
             if action.isdigit():
@@ -327,20 +374,23 @@ class BotHandlers:
                     wiz_data['days'].append(day_idx)
                 wiz_data['is_one_time'] = False
                 wiz_data['everyday'] = False
+                wiz_data['one_time_date'] = None
             elif action == 'everyday':
                 wiz_data['everyday'] = not wiz_data.get('everyday', False)
                 if wiz_data['everyday']:
                     wiz_data['days'] = list(range(7))
                     wiz_data['is_one_time'] = False
+                    wiz_data['one_time_date'] = None
                 else:
                     wiz_data['days'] = []
             elif action == 'onetime':
                 wiz_data['is_one_time'] = not wiz_data.get('is_one_time', False)
                 wiz_data['everyday'] = False
                 wiz_data['days'] = []
+                wiz_data['one_time_date'] = None
             elif action == 'confirm':
-                if not wiz_data.get('days') and not wiz_data.get('is_one_time') and not wiz_data.get('everyday'):
-                    await query.answer("⚠️ Обери хоча б один день або тип нагадування!", show_alert=True)
+                if not wiz_data.get('days') and not wiz_data.get('is_one_time') and not wiz_data.get('everyday') and not wiz_data.get('one_time_date'):
+                    await query.answer("⚠️ Обери хоча б один день, дату або тип нагадування!", show_alert=True)
                     return ConversationState.CHOOSING_DAYS.value
                 await query.answer()
                 markup = build_wiz_times_keyboard(wiz_data['times'])
@@ -355,9 +405,14 @@ class BotHandlers:
             markup = build_wiz_days_keyboard(
                 wiz_data['days'],
                 wiz_data.get('is_one_time', False),
-                wiz_data.get('everyday', False)
+                wiz_data.get('everyday', False),
+                wiz_data.get('one_time_date')
             )
-            await query.edit_message_reply_markup(reply_markup=markup)
+            await query.edit_message_text(
+                format_wizard_step(2, wiz_data),
+                parse_mode='MarkdownV2',
+                reply_markup=markup
+            )
             return ConversationState.CHOOSING_DAYS.value
 
         # STEP 3: TIMES
@@ -398,10 +453,11 @@ class BotHandlers:
             wiz_data['interval_minutes'] = interval_val
             await query.answer()
             markup = build_wiz_interval_keyboard(interval_val)
-            try:
-                await query.edit_message_reply_markup(reply_markup=markup)
-            except Exception:
-                pass
+            await query.edit_message_text(
+                format_wizard_step(4, wiz_data),
+                parse_mode='MarkdownV2',
+                reply_markup=markup
+            )
             return ConversationState.CHOOSING_INTERVAL.value
 
         elif data == 'wiz_save':
@@ -567,6 +623,8 @@ class BotHandlers:
                 await self._handle_snooze_single(query, data, context)
             elif data.startswith('snoozeopt_'):
                 await self._handle_snooze_option(query, data, context)
+            elif data.startswith('snoozeall_'):
+                await self._handle_snooze_all_option(query, data, context)
             elif data.startswith('edit_'):
                 pass
         except Exception as e:
@@ -767,39 +825,35 @@ class BotHandlers:
             await query.answer("❌ Неправильний формат даних.", show_alert=True)
             return
 
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "30 хвилин",
-                    callback_data=f"snoozeopt_{task_id}_{time_part}_30",
-                ),
-                InlineKeyboardButton(
-                    "1 година",
-                    callback_data=f"snoozeopt_{task_id}_{time_part}_60",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    "⏱️ Власний інтервал",
-                    callback_data=f"snoozeopt_{task_id}_{time_part}_custom",
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔙 Скасувати",
-                    callback_data=f"snoozeopt_{task_id}_{time_part}_cancel",
-                )
-            ],
-        ]
+        task = await self.db.get_task(task_id)
+        if not task:
+            await query.answer("❌ Завдання не знайдено.", show_alert=True)
+            return
+
+        time_display = f"{time_part[:2]}:{time_part[2:]}" if len(time_part) == 4 else time_part
+
+        # Store pending custom single snooze state IMMEDIATELY so chat text input works without clicking any "custom" button
+        context.user_data['snooze_custom_single'] = {
+            'task_id': task_id,
+            'time_part': time_part,
+            'prompt_msg_id': query.message.message_id if query.message else None
+        }
 
         await query.answer()
-        await query.message.reply_text(
-            "⏸ На скільки відкласти це нагадування?",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+        text = format_snooze_card(task, time_display)
+        markup = build_snooze_keyboard(task_id, time_part)
+
+        try:
+            msg = await query.edit_message_text(text, parse_mode='MarkdownV2', reply_markup=markup)
+            if msg:
+                context.user_data['snooze_custom_single']['prompt_msg_id'] = msg.message_id
+        except Exception:
+            msg = await query.message.reply_text(text, parse_mode='MarkdownV2', reply_markup=markup)
+            if msg:
+                context.user_data['snooze_custom_single']['prompt_msg_id'] = msg.message_id
 
     async def _handle_snooze_option(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
-        """Handle choice of snooze duration for a single reminder."""
+        """Handle choice of snooze duration for a single reminder via inline button."""
         try:
             parts = data.split('_')
             task_id = int(parts[1])
@@ -809,25 +863,16 @@ class BotHandlers:
             await query.answer("❌ Неправильний формат даних.", show_alert=True)
             return
 
+        context.user_data.pop('snooze_custom_single', None)
+
         if option == 'cancel':
             await query.answer("Відкладення скасовано.")
-            await query.message.delete()
+            try:
+                await query.edit_message_text("⏸ *Відкладення скасовано\\.*", parse_mode='MarkdownV2')
+            except Exception:
+                await query.message.delete()
             return
 
-        if option == 'custom':
-            # Ask user for custom interval in minutes via normal message
-            context.user_data['snooze_custom_single'] = {
-                'task_id': task_id,
-                'time_part': time_part,
-            }
-            await query.answer()
-            await query.message.reply_text(
-                "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30), на який відкласти це нагадування:",
-                reply_markup=CANCEL_MARKUP
-            )
-            return
-
-        # Fixed option in minutes
         try:
             minutes = int(option)
         except ValueError:
@@ -840,8 +885,47 @@ class BotHandlers:
         user_id = query.from_user.id
         await self._apply_snooze_single(user_id, task_id, time_part, minutes)
         await query.answer()
-        await query.message.edit_text(
-            f"⏸ Нагадування відкладено на {minutes} хвилин."
+
+        time_str = f"{minutes} хв" if minutes < 60 else f"{minutes // 60} год"
+        await query.edit_message_text(
+            f"⏸ *Нагадування відкладено на {escape_md(time_str)}\\!*",
+            parse_mode='MarkdownV2'
+        )
+
+    async def _handle_snooze_all_option(self, query, data: str, context: ContextTypes.DEFAULT_TYPE):
+        """Handle inline button click for snooze all."""
+        try:
+            option = data.split('_')[1]
+        except (IndexError, ValueError):
+            await query.answer("❌ Помилка даних", show_alert=True)
+            return
+
+        context.user_data.pop('snooze_all_pending', None)
+
+        if option == 'cancel':
+            await query.answer("Скасовано")
+            try:
+                await query.edit_message_text("⏸ *Відкладення всіх нагадувань скасовано\\.*", parse_mode='MarkdownV2')
+            except Exception:
+                await query.message.delete()
+            return
+
+        try:
+            minutes = int(option)
+        except ValueError:
+            await query.answer("❌ Невідомий інтервал", show_alert=True)
+            return
+
+        user_id = query.from_user.id
+        now = datetime.now(TZ)
+        snoozed_until = now + timedelta(minutes=minutes)
+        await self.db.set_user_snooze(user_id, snoozed_until)
+
+        await query.answer()
+        time_str = f"{minutes} хв" if minutes < 60 else f"{minutes // 60} год"
+        await query.edit_message_text(
+            f"⏸ *Усі нагадування відкладено на {escape_md(time_str)}\\!*",
+            parse_mode='MarkdownV2'
         )
 
     async def _apply_snooze_single(
@@ -877,32 +961,28 @@ class BotHandlers:
 
         # Custom single reminder snooze
         if 'snooze_custom_single' in context.user_data:
-            data = context.user_data.pop('snooze_custom_single', None)
+            data = context.user_data.get('snooze_custom_single', {})
             if not data:
                 return
 
-            if text == '🏠 Скасувати':
+            if text in ('🏠 Скасувати', '❌ Скасувати', 'Скасувати', '/cancel'):
+                context.user_data.pop('snooze_custom_single', None)
                 await update.message.reply_text(
-                    "⏸ Відкладення скасовано.",
+                    "⏸ *Відкладення скасовано\\.*",
+                    parse_mode='MarkdownV2',
                     reply_markup=MAIN_MARKUP,
                 )
                 return
 
             minutes = self.validator.parse_interval(text)
-            if minutes is None:
+            if minutes is None or not self.validator.validate_interval(minutes):
                 await update.message.reply_text(
-                    "⚠️ Будь ласка, введи інтервал (у хвилинах або години:хвилини) або '🏠 Скасувати'.",
+                    "⚠️ *Будь ласка, введи інтервал у хвилинах \\(наприклад: 15, 45, 90 чи 1:30\\) або натисни '❌ Скасувати'\\.*",
+                    parse_mode='MarkdownV2'
                 )
-                # Keep state so user can try again
-                context.user_data['snooze_custom_single'] = data
                 return
 
-            if not self.validator.validate_interval(minutes):
-                await update.message.reply_text(
-                    "⚠️ Інтервал має бути від 1 до 1440 хвилин. Спробуй ще раз:",
-                )
-                context.user_data['snooze_custom_single'] = data
-                return
+            context.user_data.pop('snooze_custom_single', None)
 
             await self._apply_snooze_single(
                 user_id=user_id,
@@ -910,56 +990,54 @@ class BotHandlers:
                 time_part=data['time_part'],
                 minutes=minutes,
             )
+
+            prompt_msg_id = data.get('prompt_msg_id')
+            if prompt_msg_id:
+                try:
+                    await context.bot.edit_message_text(
+                        chat_id=update.effective_chat.id,
+                        message_id=prompt_msg_id,
+                        text=f"⏸ *Нагадування відкладено на {minutes} хв\\!*",
+                        parse_mode='MarkdownV2'
+                    )
+                except Exception:
+                    pass
+
+            time_str = f"{minutes} хв" if minutes < 60 else f"{minutes // 60} год"
             await update.message.reply_text(
-                f"⏸ Нагадування відкладено на {minutes} хвилин.",
+                f"⏸ *Нагадування відкладено на {escape_md(time_str)}\\!*",
+                parse_mode='MarkdownV2',
                 reply_markup=MAIN_MARKUP,
             )
             return
 
         # Snooze all reminders flow
         if context.user_data.get('snooze_all_pending'):
-            if text == '🏠 Скасувати':
+            if text in ('🏠 Скасувати', '❌ Скасувати', 'Скасувати', '/cancel'):
                 context.user_data.pop('snooze_all_pending', None)
                 await update.message.reply_text(
-                    "⏸ Відкладення всіх нагадувань скасовано.",
+                    "⏸ *Відкладення всех нагадувань скасовано\\.*",
+                    parse_mode='MarkdownV2',
                     reply_markup=MAIN_MARKUP,
                 )
                 return
 
-            interval_map = {
-                '30 хвилин': 30,
-                '1 година': 60,
-            }
-
-            minutes = interval_map.get(text)
-            if minutes is None:
-                if text == 'Власний інтервал':
-                    await update.message.reply_text(
-                        "⏱️ Введи інтервал (у хвилинах, наприклад 90, або години:хвилини, наприклад 1:30):",
-                    )
-                    return
-
-                # Treat as custom minutes
-                minutes = self.validator.parse_interval(text)
-                if minutes is None:
-                    await update.message.reply_text(
-                        "⚠️ Введи інтервал (у хвилинах або години:хвилини) або обери варіант з клавіатури.",
-                    )
-                    return
-
-            if not self.validator.validate_interval(minutes):
+            minutes = self.validator.parse_interval(text)
+            if minutes is None or not self.validator.validate_interval(minutes):
                 await update.message.reply_text(
-                    "⚠️ Інтервал має бути від 1 до 1440 хвилин. Спробуй ще раз:",
+                    "⚠️ *Введи інтервал у хвилинах \\(наприклад: 30, 60 чи 2:00\\) або обери варіант з кнопок\\.*",
+                    parse_mode='MarkdownV2'
                 )
                 return
 
             now = datetime.now(TZ)
             snoozed_until = now + timedelta(minutes=minutes)
             await self.db.set_user_snooze(user_id, snoozed_until)
-
             context.user_data.pop('snooze_all_pending', None)
 
+            time_str = f"{minutes} хв" if minutes < 60 else f"{minutes // 60} год"
             await update.message.reply_text(
-                f"⏸ Усі нагадування відкладено на {minutes} хвилин.",
+                f"⏸ *Усі нагадування відкладено на {escape_md(time_str)}\\!*",
+                parse_mode='MarkdownV2',
                 reply_markup=MAIN_MARKUP,
             )
