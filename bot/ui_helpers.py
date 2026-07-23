@@ -300,24 +300,183 @@ def build_snooze_all_keyboard() -> InlineKeyboardMarkup:
     ]
     return InlineKeyboardMarkup([row1, row2])
 
-def build_edit_interval_keyboard(task_id: int) -> InlineKeyboardMarkup:
+def build_edit_interval_keyboard(task_id: int, current_interval: int = 0) -> InlineKeyboardMarkup:
     """Build Inline Keyboard for interval selection in edit flow."""
-    row1 = [
-        InlineKeyboardButton("Без повторів", callback_data=f"editint_{task_id}_0"),
-        InlineKeyboardButton("15 хв", callback_data=f"editint_{task_id}_15"),
-        InlineKeyboardButton("30 хв", callback_data=f"editint_{task_id}_30")
-    ]
-    row2 = [
-        InlineKeyboardButton("1 год", callback_data=f"editint_{task_id}_60"),
-        InlineKeyboardButton("2 год", callback_data=f"editint_{task_id}_120"),
+    opts = [(0, "Без повторів"), (15, "15 хв"), (30, "30 хв"), (60, "1 год")]
+    row = []
+    for val, label in opts:
+        mark = "✅ " if current_interval == val else ""
+        row.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"editint_{task_id}_{val}"))
+        
+    row_actions = [
+        InlineKeyboardButton("◀️ Назад", callback_data="edit_back_main"),
         InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})
     ]
-    return InlineKeyboardMarkup([row1, row2])
+    return InlineKeyboardMarkup([row, row_actions])
 
-def build_edit_times_keyboard(task_id: int) -> InlineKeyboardMarkup:
+def build_edit_times_keyboard(task_id: int, selected_times: list = None) -> InlineKeyboardMarkup:
     """Build Inline Keyboard for time selection in edit flow."""
     presets = ["08:00", "09:00", "12:00", "15:00", "18:00", "21:00"]
-    row1 = [InlineKeyboardButton(t, callback_data=f"edittime_{task_id}_{t}") for t in presets[:3]]
-    row2 = [InlineKeyboardButton(t, callback_data=f"edittime_{task_id}_{t}") for t in presets[3:]]
-    row3 = [InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})]
-    return InlineKeyboardMarkup([row1, row2, row3])
+    selected = selected_times or []
+    row1, row2 = [], []
+    for t in presets[:3]:
+        mark = "✅ " if t in selected else ""
+        row1.append(InlineKeyboardButton(f"{mark}{t}", callback_data=f"edittime_{task_id}_{t}"))
+    for t in presets[3:]:
+        mark = "✅ " if t in selected else ""
+        row2.append(InlineKeyboardButton(f"{mark}{t}", callback_data=f"edittime_{task_id}_{t}"))
+        
+    row_actions = [
+        InlineKeyboardButton("◀️ Назад", callback_data="edit_back_main"),
+        InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})
+    ]
+    return InlineKeyboardMarkup([row1, row2, row_actions])
+
+def build_edit_desc_keyboard() -> InlineKeyboardMarkup:
+    """Build Inline Keyboard for description edit state."""
+    row = [
+        InlineKeyboardButton("◀️ Назад", callback_data="edit_back_main"),
+        InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})
+    ]
+    return InlineKeyboardMarkup([row])
+
+def build_edit_menu_keyboard(task_id: int) -> InlineKeyboardMarkup:
+    """Build Inline Keyboard for main edit menu."""
+    keyboard = [
+        [
+            InlineKeyboardButton("📝 Опис", callback_data='edit_field_description'),
+            InlineKeyboardButton("📅 Дні / Дати", callback_data='edit_field_type')
+        ],
+        [
+            InlineKeyboardButton("⏰ Час", callback_data='edit_field_times'),
+            InlineKeyboardButton("⏱️ Інтервал", callback_data='edit_field_interval')
+        ],
+        [
+            InlineKeyboardButton("❌ Скасувати", callback_data='edit_cancel', api_kwargs={'style': 'danger'})
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def format_edit_menu_card(task: Dict) -> str:
+    """Format Rich MarkdownV2 card for main edit menu."""
+    from core.scheduler import DayOfWeek
+    
+    desc = escape_md(task.get('description', ''))
+    task_type = escape_md(get_task_type_str(task))
+    
+    one_time_date = task.get('one_time_date')
+    if one_time_date:
+        days_str = escape_md(f"Дати: {format_one_time_date_display(one_time_date)}")
+    else:
+        days = task.get('days', [])
+        if days:
+            day_names = [DayOfWeek.from_index(d).full for d in days]
+            days_str = escape_md(', '.join(day_names))
+        else:
+            days_str = escape_md('Не вказано')
+            
+    times = task.get('times', [])
+    times_str = escape_md(', '.join(times)) if times else escape_md('Не вказано')
+    
+    interval = task.get('interval_minutes', 0)
+    interval_str = escape_md("без повторень" if interval == 0 else f"кожні {interval} хв")
+    
+    return (
+        f"✏️ *Редагування нагадування*\n\n"
+        f"> 📌 *Опис:* {desc}\n"
+        f"> 🏷️ *Тип:* {task_type}\n"
+        f"> 📅 *Розклад:* {days_str}\n"
+        f"> ⏰ *Час:* `{times_str}`\n"
+        f"> ⏱️ *Інтервал:* `{interval_str}`\n\n"
+        f"💡 _Обери параметр, який ти хочеш змінити кнопками нижче:_"
+    )
+
+def format_edit_field_card(task: Dict, field: str, temp_data: Optional[Dict] = None) -> str:
+    """Format Rich MarkdownV2 card for specific edit field submenus."""
+    from core.scheduler import DayOfWeek
+    
+    desc = escape_md(task.get('description', ''))
+    
+    if field == 'description':
+        return (
+            f"✏️ *Редагування опису*\n\n"
+            f"> 📌 *Поточний опис:* {desc}\n\n"
+            f"> ✍️ *Введи новий опис завдання у чат:*\n\n"
+            f"**> 💡 _Приклади: Пройти рев'ю коду, Купити молоко, Взяти ліки_**"
+        )
+    elif field == 'times':
+        times = task.get('times', [])
+        times_str = escape_md(', '.join(times)) if times else escape_md('Не вказано')
+        return (
+            f"✏️ *Редагування часу*\n\n"
+            f"> 📌 *Опис:* {desc}\n"
+            f"> ⏰ *Поточний час:* `{times_str}`\n\n"
+            f"⏰ *Обери популярні години нижче або введи свій час у чат:*\n"
+            f"**> 💡 _Приклади для чату: `09:30`, `18:00` чи `09:00, 15:00, 21:00`_**"
+        )
+    elif field == 'interval':
+        interval = task.get('interval_minutes', 0)
+        interval_str = escape_md("без повторень" if interval == 0 else f"кожні {interval} хв")
+        return (
+            f"✏️ *Редагування інтервалу*\n\n"
+            f"> 📌 *Опис:* {desc}\n"
+            f"> ⏱️ *Поточний інтервал:* `{interval_str}`\n\n"
+            f"⏱️ *Обери новий інтервал кнопкою нижче або введи свій у чат:*\n"
+            f"**> 💡 _Приклади для чату: `15`, `45`, `90` чи `1:30`_**"
+        )
+    elif field == 'type':
+        data = temp_data or task
+        days = data.get('days', [])
+        is_one_time = data.get('is_one_time', False)
+        everyday = data.get('everyday', False)
+        one_time_date = data.get('one_time_date')
+        
+        if one_time_date:
+            days_str = escape_md(f"Дати: {format_one_time_date_display(one_time_date)}")
+        elif everyday or len(days) == 7:
+            days_str = escape_md("Щодня")
+        elif days:
+            day_names = [DayOfWeek.from_index(d).short.upper() for d in days]
+            days_str = escape_md(', '.join(day_names))
+        else:
+            days_str = escape_md("Не обрано")
+            
+        date_info = f"\n📅 *Обрані дати:* `{escape_md(format_one_time_date_display(one_time_date))}`" if one_time_date else ""
+        
+        return (
+            f"✏️ *Редагування розкладу*\n\n"
+            f"> 📌 *Опис:* {desc}\n"
+            f"> 📅 *Обрано:* {days_str}{date_info}\n\n"
+            f"📅 *Обери дні тижня кнопками нижче або введи дату/дати у чат:*\n"
+            f"**> 💡 _Приклади для чату: `25.07.2026, 28.07.2026`, `25.07, 28.07` чи `сьогодні, завтра`_**"
+        )
+    return ""
+
+def build_edit_days_keyboard(selected_days: list, is_one_time: bool = False, everyday: bool = False, one_time_date: str = None) -> InlineKeyboardMarkup:
+    """Build interactive Inline Keyboard for selecting days in edit mode."""
+    days_map = [("Пн", 0), ("Вт", 1), ("Ср", 2), ("Чт", 3), ("Пт", 4), ("Сб", 5), ("Нд", 6)]
+    
+    row1, row2 = [], []
+    for label, idx in days_map[:4]:
+        mark = "✅ " if (idx in selected_days and not is_one_time and not one_time_date) else ""
+        row1.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"editday_{idx}"))
+    for label, idx in days_map[4:]:
+        mark = "✅ " if (idx in selected_days and not is_one_time and not one_time_date) else ""
+        row2.append(InlineKeyboardButton(f"{mark}{label}", callback_data=f"editday_{idx}"))
+        
+    everyday_mark = "✅ " if (everyday and not one_time_date) else ""
+    onetime_mark = "✅ " if (is_one_time or one_time_date) else ""
+    
+    row_mode = [
+        InlineKeyboardButton(f"{everyday_mark}🔁 Щодня", callback_data="editday_everyday"),
+        InlineKeyboardButton(f"{onetime_mark}🏁 Одноразове", callback_data="editday_onetime")
+    ]
+    
+    row_actions = [
+        InlineKeyboardButton("◀️ Назад", callback_data="edit_back_main"),
+        InlineKeyboardButton("🚀 Зберегти!", callback_data="edit_days_confirm", api_kwargs={'style': 'primary'}),
+        InlineKeyboardButton("❌ Скасувати", callback_data="edit_cancel", api_kwargs={'style': 'danger'})
+    ]
+    
+    return InlineKeyboardMarkup([row1, row2, row_mode, row_actions])
+

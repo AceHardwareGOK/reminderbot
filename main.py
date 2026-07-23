@@ -69,16 +69,18 @@ def main():
         entry_points=[CallbackQueryHandler(edit_handlers.edit_reminder_start, pattern=r'^edit_\d+$')],
         states={
             ConversationState.EDIT_SELECT_FIELD.value: [
-                CallbackQueryHandler(edit_handlers.edit_select_field, pattern='^edit_')
+                CallbackQueryHandler(edit_handlers.edit_select_field, pattern='^edit')
             ],
             ConversationState.EDIT_ENTER_VALUE.value: [
-                CallbackQueryHandler(edit_handlers.edit_callback_value, pattern=r'^(editint_|edittime_|edit_cancel)'),
+                CallbackQueryHandler(edit_handlers.edit_callback_value, pattern='^edit'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, edit_handlers.edit_enter_value)
             ],
             ConversationState.EDIT_CHOOSING_DAYS.value: [
+                CallbackQueryHandler(edit_handlers.edit_callback_value, pattern='^edit'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, edit_handlers.edit_choosing_days)
             ],
             ConversationState.EDIT_CHOOSING_ONE_TIME_DATE.value: [
+                CallbackQueryHandler(edit_handlers.edit_callback_value, pattern='^edit'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, edit_handlers.edit_choosing_one_time_date)
             ]
         },
