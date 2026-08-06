@@ -298,9 +298,11 @@ class EditHandlers:
                         parse_mode='MarkdownV2'
                     )
                 except Exception:
-                    pass
+                    from .keyboards import get_main_keyboard
+                    await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=get_main_keyboard())
             else:
-                await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=MAIN_MARKUP)
+                from .keyboards import get_main_keyboard
+                await update.message.reply_text("✏️ *Редагування скасовано\\.*", parse_mode='MarkdownV2', reply_markup=get_main_keyboard())
             context.user_data.clear()
             return ConversationHandler.END
             

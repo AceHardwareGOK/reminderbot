@@ -1,14 +1,27 @@
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+import os
+from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
-# Main Menu Keyboard Layout
 MAIN_KEYBOARD = [
     ['➕ Створити нагадування'],
     ['📋 Мої нагадування']
 ]
-MAIN_MARKUP = ReplyKeyboardMarkup(MAIN_KEYBOARD, resize_keyboard=True)
+
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Build main reply keyboard."""
+    keyboard = [
+        ['➕ Створити нагадування'],
+        ['📋 Мої нагадування']
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+MAIN_MARKUP = get_main_keyboard()
+
+
+
 
 CANCEL_KEYBOARD = [['🏠 Скасувати']]
 CANCEL_MARKUP = ReplyKeyboardMarkup(CANCEL_KEYBOARD, resize_keyboard=True)
+
 
 def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int) -> InlineKeyboardMarkup:
     """Build interactive dashboard keyboard with pagination and action buttons."""

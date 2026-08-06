@@ -9,7 +9,7 @@ from core.database import DatabaseManager
 from core.scheduler import ReminderManager, DayOfWeek
 from utils.validators import Validator
 from .states import ConversationState
-from .keyboards import MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD, build_dashboard_keyboard
+from .keyboards import get_main_keyboard, MAIN_MARKUP, CANCEL_MARKUP, MAIN_KEYBOARD, build_dashboard_keyboard
 from .ui_helpers import (
     escape_md, format_task_card, format_progress_header, 
     format_reminder_notification, get_task_type_str,
@@ -42,7 +42,7 @@ class BotHandlers:
             f"Привіт, {user.first_name}! 👋\n\n"
             "Я твій особистий бот-нагадувач. Допоможу тобі пам'ятати про важливі справи!\n\n"
             "Використовуй кнопки нижче для навігації:",
-            reply_markup=MAIN_MARKUP
+            reply_markup=get_main_keyboard()
         )
     
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -61,7 +61,7 @@ class BotHandlers:
         
         await update.message.reply_text(
             "❌ Створення нагадування скасовано.",
-            reply_markup=MAIN_MARKUP
+            reply_markup=get_main_keyboard()
         )
         return ConversationHandler.END
 
@@ -501,7 +501,7 @@ class BotHandlers:
                 "📭 *У тебе ще немає нагадувань\\.*\n"
                 "Натисни '➕ Створити нагадування', щоб додати\\!",
                 parse_mode='MarkdownV2',
-                reply_markup=MAIN_MARKUP
+                reply_markup=get_main_keyboard()
             )
             return
         
@@ -562,7 +562,7 @@ class BotHandlers:
         if not tasks:
             await update.message.reply_text(
                 "📭 У тебе немає нагадувань для видалення.",
-                reply_markup=MAIN_MARKUP
+                reply_markup=get_main_keyboard()
             )
             return
         
@@ -593,7 +593,7 @@ class BotHandlers:
         
         await update.message.reply_text(
             "👆 Обери, яке нагадування видалити.",
-            reply_markup=MAIN_MARKUP
+            reply_markup=get_main_keyboard()
         )
 
     # ==================== BUTTON HANDLERS ====================
@@ -691,9 +691,24 @@ class BotHandlers:
             await query.answer("⚠️ Завдання не знайдено.", show_alert=True)
             return
 
-        await self.db.mark_reminder_completed(user_id, task_id, rem_inst_id)
+        # Mark as completed for all possible key variations
+        times = task.get("times", [])
+        is_one_time = task.get("is_one_time", False)
+        one_time_date = task.get("one_time_date", "")
         
-        is_one_time = task.get('is_one_time', False)
+        rem_inst_ids = [rem_inst_id, f"inst_{task_id}"]
+        for t in times:
+            t_clean = t.replace(":", "")
+            rem_inst_ids.append(f"{task_id}_{t_clean}")
+            if is_one_time and one_time_date:
+                for d in one_time_date.split(","):
+                    d_clean = d.strip()[:10].replace("-", "")
+                    if d_clean:
+                        rem_inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+
+        for inst_id in set(rem_inst_ids):
+            await self.db.mark_reminder_completed(user_id, task_id, inst_id)
+        
         if is_one_time:
             has_remaining = await self.reminder_manager.has_remaining_one_time_slots(user_id, task)
             if not has_remaining:
@@ -704,6 +719,7 @@ class BotHandlers:
                 await query.answer(f"✅ Нагадування о {time_str} виконано!", show_alert=True)
         else:
             await query.answer(f"✅ Нагадування о {time_str} відмічено виконаним!", show_alert=False)
+
 
         # Refresh dashboard page
         tasks = await self.db.get_user_tasks(user_id)
@@ -775,20 +791,34 @@ class BotHandlers:
             return
         
         reminder_instance_id = f"{task_id}_{time_part}"
-        
+
         # Cancel any active repeat tasks for this reminder instance
-        self.reminder_manager._cancel_repeat_tasks(reminder_instance_id)
+        self.reminder_manager.cancel_repeat_tasks(reminder_instance_id)
+
         
-        # Mark as completed
-        await self.db.mark_reminder_completed(user_id, task_id, reminder_instance_id)
+        # Mark as completed for all possible key variations
+        times = task.get("times", [])
+        is_one_time = task.get("is_one_time", False)
+        one_time_date = task.get("one_time_date", "")
+        
+        rem_inst_ids = [reminder_instance_id, f"inst_{task_id}"]
+        for t in times:
+            t_clean = t.replace(":", "")
+            rem_inst_ids.append(f"{task_id}_{t_clean}")
+            if is_one_time and one_time_date:
+                for d in one_time_date.split(","):
+                    d_clean = d.strip()[:10].replace("-", "")
+                    if d_clean:
+                        rem_inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+
+        for inst_id in set(rem_inst_ids):
+            await self.db.mark_reminder_completed(user_id, task_id, inst_id)
         
         # Format time for display
         if len(time_part) == 4:
             time_display = f"{time_part[:2]}:{time_part[2:]}"
         else:
             time_display = time_part
-        
-        is_one_time = task.get('is_one_time', False)
         
         if is_one_time:
             # Check if there are other future scheduled times for this one-time task
@@ -812,6 +842,7 @@ class BotHandlers:
                 f"✅ *Нагадування '{escape_md(task['description'])}' о {escape_md(time_display)} позначено як виконане\\!*",
                 parse_mode='MarkdownV2'
             )
+
 
     # ==================== SNOOZE HANDLERS ====================
 
@@ -857,8 +888,8 @@ class BotHandlers:
         try:
             parts = data.split('_')
             task_id = int(parts[1])
-            time_part = parts[2]
-            option = parts[3]
+            option = parts[-1]
+            time_part = '_'.join(parts[2:-1])
         except (IndexError, ValueError):
             await query.answer("❌ Неправильний формат даних.", show_alert=True)
             return
@@ -935,21 +966,36 @@ class BotHandlers:
         time_part: str,
         minutes: int,
     ) -> None:
-        """Persist snooze for a single reminder instance."""
+        """Persist snooze for a single reminder instance across all key variations."""
         task = await self.db.get_task(task_id)
         if not task:
             return
 
-        reminder_instance_id = f"{task_id}_{time_part}"
         now = datetime.now(TZ)
         snoozed_until = now + timedelta(minutes=minutes)
 
-        await self.db.set_reminder_snooze(
-            user_id=user_id,
-            task_id=task_id,
-            reminder_instance_id=reminder_instance_id,
-            snoozed_until=snoozed_until,
-        )
+        times = task.get("times", [])
+        is_one_time = task.get("is_one_time", False)
+        one_time_date = task.get("one_time_date", "")
+
+        inst_ids = [f"{task_id}_{time_part}", f"{task_id}_snooze", f"inst_{task_id}"]
+        for t in times:
+            t_clean = t.replace(":", "")
+            inst_ids.append(f"{task_id}_{t_clean}")
+            if is_one_time and one_time_date:
+                for d in one_time_date.split(","):
+                    d_clean = d.strip()[:10].replace("-", "")
+                    if d_clean:
+                        inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+
+        for inst_id in set(inst_ids):
+            await self.db.set_reminder_snooze(
+                user_id=user_id,
+                task_id=task_id,
+                reminder_instance_id=inst_id,
+                snoozed_until=snoozed_until,
+            )
+
 
     async def handle_snooze_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text input for custom snooze intervals and 'snooze all' flow."""
@@ -970,7 +1016,7 @@ class BotHandlers:
                 await update.message.reply_text(
                     "⏸ *Відкладення скасовано\\.*",
                     parse_mode='MarkdownV2',
-                    reply_markup=MAIN_MARKUP,
+                    reply_markup=get_main_keyboard(),
                 )
                 return
 
@@ -1007,7 +1053,7 @@ class BotHandlers:
             await update.message.reply_text(
                 f"⏸ *Нагадування відкладено на {escape_md(time_str)}\\!*",
                 parse_mode='MarkdownV2',
-                reply_markup=MAIN_MARKUP,
+                reply_markup=get_main_keyboard(),
             )
             return
 
@@ -1018,7 +1064,7 @@ class BotHandlers:
                 await update.message.reply_text(
                     "⏸ *Відкладення всех нагадувань скасовано\\.*",
                     parse_mode='MarkdownV2',
-                    reply_markup=MAIN_MARKUP,
+                    reply_markup=get_main_keyboard(),
                 )
                 return
 
@@ -1039,5 +1085,5 @@ class BotHandlers:
             await update.message.reply_text(
                 f"⏸ *Усі нагадування відкладено на {escape_md(time_str)}\\!*",
                 parse_mode='MarkdownV2',
-                reply_markup=MAIN_MARKUP,
+                reply_markup=get_main_keyboard(),
             )

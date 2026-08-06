@@ -1,6 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Tuple, List, Optional
 
+from zoneinfo import ZoneInfo
+from core.config import TIMEZONE
+
+TZ = ZoneInfo(TIMEZONE)
+
+
 class Validator:
     """Input validation utilities"""
     
@@ -65,7 +71,8 @@ class Validator:
         if not text:
             return None, None
             
-        now = datetime.now()
+        now = datetime.now(TZ)
+
         parts = text.split()
         
         time_part = None

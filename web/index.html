@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ReminderBot — Mini App</title>
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Шапка профілю -->
+        <header class="app-header">
+            <div class="user-profile">
+                <div class="avatar" id="user-avatar">🔔</div>
+                <div class="user-info">
+                    <h2 id="user-name">ReminderBot</h2>
+                    <p class="subtitle" id="stats-subtitle">Завантаження...</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="snooze-all-btn" class="icon-btn" title="Відкласти все">⏸</button>
+                <button id="refresh-btn" class="icon-btn" title="Оновити">🔄</button>
+            </div>
+        </header>
+
+        <!-- Прогрес виконання -->
+        <div class="progress-card">
+            <div class="progress-info">
+                <span>Прогрес на сьогодні</span>
+                <strong id="progress-percent">0%</strong>
+            </div>
+            <div class="progress-bar-track">
+                <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <!-- Контент вкладок -->
+        <main class="tab-content">
+            <!-- Вкладка 1: Список завдань -->
+            <section id="tab-list" class="tab-pane active">
+                <div class="filter-bar">
+                    <button class="filter-chip active" data-filter="all">Всі</button>
+                    <button class="filter-chip" data-filter="today">Сьогодні</button>
+                    <button class="filter-chip" data-filter="daily">Щоденні</button>
+                    <button class="filter-chip" data-filter="onetime">Одноразові</button>
+                </div>
+
+                <div id="tasks-container" class="tasks-list">
+                    <div class="loading-spinner">Завантаження нагадувань...</div>
+                </div>
+            </section>
+
+            <!-- Вкладка 2: Календар -->
+            <section id="tab-calendar" class="tab-pane">
+                <div class="calendar-card">
+                    <div class="calendar-header">
+                        <button id="cal-prev" class="icon-btn">◀️</button>
+                        <h3 id="cal-month-title">Серпень 2026</h3>
+                        <button id="cal-next" class="icon-btn">▶️</button>
+                    </div>
+                    <div class="calendar-grid-header">
+                        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span>
+                    </div>
+                    <div id="calendar-days" class="calendar-days-grid"></div>
+                </div>
+
+                <div class="calendar-day-details">
+                    <h4 id="selected-date-title">Оберіть день у календарі</h4>
+                    <div id="selected-date-tasks" class="tasks-list compact"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Плаваюча кнопка створення (FAB) -->
+        <button id="fab-add-btn" class="fab-btn">➕</button>
+
+        <!-- Модальне вікно створення -->
+        <div id="create-modal" class="modal-backdrop hidden">
+            <div class="modal-window">
+                <div class="modal-header">
+                    <h3>Нове нагадування</h3>
+                    <button id="close-modal-btn" class="icon-btn">❌</button>
+                </div>
+                <form id="create-task-form" class="card-form">
+                    <div class="form-group">
+                        <label for="task-desc">Опис завдання</label>
+                        <input type="text" id="task-desc" placeholder="Наприклад: Прийняти вітаміни" required autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Тип розкладу</label>
+                        <div class="radio-group">
+                            <label class="radio-btn">
+                                <input type="radio" name="schedule_type" value="daily" checked>
+                                <span>Щоденно / По днях</span>
+                            </label>
+                            <label class="radio-btn">
+                                <input type="radio" name="schedule_type" value="onetime">
+                                <span>Одноразове (Дати)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Дні тижня -->
+                    <div id="days-selector-group" class="form-group">
+                        <label>Дні тижня</label>
+                        <div class="days-chips">
+                            <button type="button" class="day-chip active" data-day="0">Пн</button>
+                            <button type="button" class="day-chip active" data-day="1">Вт</button>
+                            <button type="button" class="day-chip active" data-day="2">Ср</button>
+                            <button type="button" class="day-chip active" data-day="3">Чт</button>
+                            <button type="button" class="day-chip active" data-day="4">Пт</button>
+                            <button type="button" class="day-chip active" data-day="5">Сб</button>
+                            <button type="button" class="day-chip active" data-day="6">Нд</button>
+                        </div>
+                    </div>
+
+                    <!-- Дати для одноразових (Графічний датепікер + швидкі чіпи) -->
+                    <div id="dates-selector-group" class="form-group hidden">
+                        <label>Оберіть дату</label>
+                        <div class="date-picker-row">
+                            <input type="date" id="task-date-picker" class="custom-picker">
+                        </div>
+                        <div class="quick-preset-chips">
+                            <button type="button" class="preset-chip" id="preset-today">Сьогодні</button>
+                            <button type="button" class="preset-chip" id="preset-tomorrow">Завтра</button>
+                            <button type="button" class="preset-chip" id="preset-in3days">+3 дні</button>
+                        </div>
+                    </div>
+
+                    <!-- Графічний Вибір часу (Time Picker + теги часів) -->
+                    <div class="form-group">
+                        <label>Час нагадування</label>
+                        <div class="time-picker-row">
+                            <input type="time" id="task-time-picker" value="09:00" class="custom-picker">
+                            <button type="button" id="add-time-btn" class="btn-small btn-primary">➕ Додати час</button>
+                        </div>
+                        <div class="quick-preset-chips">
+                            <button type="button" class="time-preset-chip" data-time="08:00">08:00</button>
+                            <button type="button" class="time-preset-chip" data-time="09:00">09:00</button>
+                            <button type="button" class="time-preset-chip" data-time="12:00">12:00</button>
+                            <button type="button" class="time-preset-chip" data-time="15:00">15:00</button>
+                            <button type="button" class="time-preset-chip" data-time="18:00">18:00</button>
+                            <button type="button" class="time-preset-chip" data-time="21:00">21:00</button>
+                        </div>
+                        <div id="selected-times-container" class="tags-container"></div>
+                    </div>
+
+                    <!-- Графічний вибір інтервалу повтору -->
+                    <div class="form-group">
+                        <label>Повторювати кожні N хвилин</label>
+                        <div class="interval-chips">
+                            <button type="button" class="interval-chip active" data-minutes="0">Без повтору</button>
+                            <button type="button" class="interval-chip" data-minutes="15">15 хв</button>
+                            <button type="button" class="interval-chip" data-minutes="30">30 хв</button>
+                            <button type="button" class="interval-chip" data-minutes="60">1 год</button>
+                            <button type="button" class="interval-chip" data-minutes="120">2 год</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">💾 Зберегти нагадування</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модальне вікно редагування -->
+        <div id="edit-modal" class="modal-backdrop hidden">
+            <div class="modal-window">
+                <div class="modal-header">
+                    <h3>✏️ Редагування завдання</h3>
+                    <button id="close-edit-modal-btn" class="icon-btn">❌</button>
+                </div>
+                <form id="edit-task-form" class="card-form">
+                    <input type="hidden" id="edit-task-id">
+                    
+                    <div class="form-group">
+                        <label for="edit-task-desc">Опис завдання</label>
+                        <input type="text" id="edit-task-desc" required autocomplete="off">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Час нагадування</label>
+                        <div class="time-picker-row">
+                            <input type="time" id="edit-task-time-picker" value="09:00" class="custom-picker">
+                            <button type="button" id="edit-add-time-btn" class="btn-small btn-primary">➕ Додати</button>
+                        </div>
+                        <div id="edit-selected-times-container" class="tags-container"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Повторювати кожні N хвилин</label>
+                        <div class="interval-chips" id="edit-interval-chips">
+                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="0">Без повтору</button>
+                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="15">15 хв</button>
+                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="30">30 хв</button>
+                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="60">1 год</button>
+                        </div>
+                    </div>
+
+                    <div id="edit-days-group" class="form-group">
+                        <label>Дні тижня</label>
+                        <div class="days-chips" id="edit-days-chips">
+                            <button type="button" class="day-chip edit-day-chip" data-day="0">Пн</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="1">Вт</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="2">Ср</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="3">Чт</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="4">Пт</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="5">Сб</button>
+                            <button type="button" class="day-chip edit-day-chip" data-day="6">Нд</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">💾 Зберегти зміни</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модальне вікно Snooze (Відкладення) -->
+        <div id="snooze-modal" class="modal-backdrop hidden">
+            <div class="modal-window">
+                <div class="modal-header">
+                    <h3 id="snooze-modal-title">⏸ Відкласти нагадування</h3>
+                    <button id="close-snooze-modal-btn" class="icon-btn">❌</button>
+                </div>
+                <div class="snooze-options-grid">
+                    <button class="snooze-opt-btn" data-minutes="15">⏱ 15 хвилин</button>
+                    <button class="snooze-opt-btn" data-minutes="30">⏱ 30 хвилин</button>
+                    <button class="snooze-opt-btn" data-minutes="60">⏱ 1 година</button>
+                    <button class="snooze-opt-btn" data-minutes="120">⏱ 2 години</button>
+                    <button class="snooze-opt-btn" data-minutes="180">⏱ 3 години</button>
+                    <button class="snooze-opt-btn danger-opt" id="clear-snooze-btn">▶️ Відновити всі</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Нижнє Навігаційне Меню (Bottom Navigation Bar) -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-tab="list">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Завдання</span>
+            </button>
+            <button class="nav-item" data-tab="calendar">
+                <span class="nav-icon">📅</span>
+                <span class="nav-label">Календар</span>
+            </button>
+        </nav>
+
+        <!-- Тоаст сповіщення -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -5,12 +5,26 @@ from telegram.ext import (
     CallbackQueryHandler, filters, ConversationHandler
 )
 
-from core.config import LOG_LEVEL
+import asyncio
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+from telegram import MenuButtonWebApp, WebAppInfo
+from core.config import LOG_LEVEL, WEBAPP_PORT, WEBAPP_URL
 from core.database import DatabaseManager
 from core.scheduler import ReminderManager
 from bot.handlers import BotHandlers
 from bot.states import ConversationState
 from bot.edit_handlers import EditHandlers
+from api.routes import router as api_router, set_reminder_manager
+
+# FastAPI App for Telegram Web App
+fastapi_app = FastAPI(title="ReminderBot Web App API")
+fastapi_app.include_router(api_router)
+
+# Mount web static files
+if os.path.exists("web"):
+    fastapi_app.mount("/web", StaticFiles(directory="web", html=True), name="web")
 
 # Configure logging
 logging.basicConfig(
@@ -24,6 +38,8 @@ def main():
     # Initialize objects (sync)
     db = DatabaseManager()
     reminder_manager = ReminderManager(db)
+    set_reminder_manager(reminder_manager)
+
     handlers = BotHandlers(db, reminder_manager)
     edit_handlers = EditHandlers(db, reminder_manager, handlers.validator)
     
@@ -61,8 +77,29 @@ def main():
         except Exception as e:
             logger.error(f"Error restoring tasks: {e}")
 
+        # Configure Telegram Menu Button for Web App if URL provided
+        webapp_url = os.getenv("WEBAPP_URL") or WEBAPP_URL
+        if webapp_url:
+            try:
+                await app.bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(text="📋 Нагадування", web_app=WebAppInfo(url=webapp_url))
+                )
+                logger.info(f"Telegram Chat Menu Button set to Web App URL: {webapp_url}")
+            except Exception as e:
+                logger.error(f"Error setting Telegram Chat Menu Button: {e}")
+
+
+        # Start FastAPI Web Server in the same asyncio event loop
+        config = uvicorn.Config(app=fastapi_app, host="0.0.0.0", port=WEBAPP_PORT, log_level="warning")
+        server = uvicorn.Server(config)
+        asyncio.create_task(server.serve())
+        logger.info(f"FastAPI Web App server listening on http://0.0.0.0:{WEBAPP_PORT}")
+
+
+
     # Build application with post_init
     application = Application.builder().token(token).post_init(post_init).build()
+
     
     # Setup edit conversation handler
     edit_conv_handler = ConversationHandler(

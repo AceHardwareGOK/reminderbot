@@ -145,23 +145,41 @@ class ReminderManager:
         times = task.get('times', [])
         one_time_date = task.get('one_time_date')
 
+        # Якщо у завдання тільки 1 час і 1 дата — після відмітки виконання слотів не залишається!
+        if len(times) <= 1 and (not one_time_date or ',' not in str(one_time_date)):
+            return False
+
         if one_time_date:
-            dates = [d.strip() for d in one_time_date.split(',') if d.strip()]
+            dates = [d.strip() for d in str(one_time_date).split(',') if d.strip()]
             for d in dates:
                 for time_str in times:
-                    date_clean = d[:10].replace('-', '')
+                    date_clean = d[:10].replace('-', '').replace('.', '')
                     time_clean = time_str.replace(':', '')
-                    rem_inst_id = f"{task_id}_{date_clean}_{time_clean}"
-                    if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+                    inst_id_with_date = f"{task_id}_{date_clean}_{time_clean}"
+                    inst_id_simple = f"{task_id}_{time_clean}"
+
+                    completed = (
+                        await self.db.is_reminder_completed(user_id, task_id, inst_id_with_date) or
+                        await self.db.is_reminder_completed(user_id, task_id, inst_id_simple) or
+                        await self.db.is_reminder_completed(user_id, task_id, f"inst_{task_id}")
+                    )
+                    if not completed:
                         return True
             return False
 
         for time_str in times:
-            rem_inst_id = f"{task_id}_{time_str.replace(':', '')}"
-            if not await self.db.is_reminder_completed(user_id, task_id, rem_inst_id):
+            time_clean = time_str.replace(':', '')
+            inst_id_simple = f"{task_id}_{time_clean}"
+            completed = (
+                await self.db.is_reminder_completed(user_id, task_id, inst_id_simple) or
+                await self.db.is_reminder_completed(user_id, task_id, f"inst_{task_id}")
+            )
+            if not completed:
                 return True
                 
         return False
+
+
 
     def _schedule_one_time_task(self, task: Dict):
         """Schedule a one-time task for all specified times"""

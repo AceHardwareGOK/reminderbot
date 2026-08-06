@@ -160,17 +160,19 @@ class DatabaseManager:
 
     async def mark_reminder_completed(self, user_id: int, task_id: int, 
                                reminder_instance_id: str) -> bool:
-        """Mark a specific reminder instance as completed"""
+        """Mark a specific reminder instance as completed with local timezone timestamp"""
         async with self._get_connection() as conn:
             try:
+                now_str = datetime.now(TZ).isoformat()
                 await conn.execute('''
-                    INSERT INTO completed_reminders (user_id, task_id, reminder_instance_id)
-                    VALUES (?, ?, ?)
-                ''', (user_id, task_id, reminder_instance_id))
+                    INSERT INTO completed_reminders (user_id, task_id, reminder_instance_id, completed_at)
+                    VALUES (?, ?, ?, ?)
+                ''', (user_id, task_id, reminder_instance_id, now_str))
                 await conn.commit()
                 return True
             except aiosqlite.IntegrityError:
                 return False
+
 
     async def is_reminder_completed(self, user_id: int, task_id: int, 
                              reminder_instance_id: str) -> bool:
