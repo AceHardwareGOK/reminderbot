@@ -6,7 +6,7 @@ from telegram.ext import (
 )
 
 import asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from telegram import MenuButtonWebApp, WebAppInfo
@@ -20,7 +20,16 @@ from api.routes import router as api_router, set_reminder_manager
 
 # FastAPI App for Telegram Web App
 fastapi_app = FastAPI(title="ReminderBot Web App API")
+
+@fastapi_app.middleware("http")
+async def add_tunnel_bypass_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Bypass-Tunnel-Reminder"] = "true"
+    response.headers["Ngrok-Skip-Browser-Warning"] = "true"
+    return response
+
 fastapi_app.include_router(api_router)
+
 
 # Mount web static files
 if os.path.exists("web"):
