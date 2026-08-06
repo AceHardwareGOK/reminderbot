@@ -108,15 +108,18 @@ body {
 }
 
 .avatar {
-    font-size: 22px;
+    font-size: 20px;
     background: rgba(82, 136, 193, 0.15);
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
 }
+
 
 .user-info h2 {
     font-size: 16px;

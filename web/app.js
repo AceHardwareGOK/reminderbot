@@ -29,8 +29,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (tg?.initDataUnsafe?.user) {
         const user = tg.initDataUnsafe.user;
-        document.getElementById('user-name').textContent = `${user.first_name} ${user.last_name || ''}`.trim();
+        const nameEl = document.getElementById('user-name');
+        if (nameEl) nameEl.textContent = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Користувач';
+
+        const avatarEl = document.getElementById('user-avatar');
+        if (avatarEl) {
+            if (user.photo_url) {
+                avatarEl.innerHTML = `<img src="${user.photo_url}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                const initial = (user.first_name || 'U').charAt(0).toUpperCase();
+                avatarEl.textContent = initial;
+            }
+        }
     }
+
 
     async function apiRequest(url, options = {}) {
         options.headers = options.headers || {};
