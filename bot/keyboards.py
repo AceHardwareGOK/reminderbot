@@ -1,5 +1,7 @@
 import os
 from telegram import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from core.config import WEBAPP_URL
+
 
 MAIN_KEYBOARD = [
     ['➕ Створити нагадування'],
@@ -8,11 +10,15 @@ MAIN_KEYBOARD = [
 
 def get_main_keyboard() -> ReplyKeyboardMarkup:
     """Build main reply keyboard."""
+    webapp_url = os.getenv("WEBAPP_URL") or WEBAPP_URL
     keyboard = [
         ['➕ Створити нагадування'],
         ['📋 Мої нагадування']
     ]
+    if webapp_url:
+        keyboard.insert(0, [KeyboardButton('📱 Відкрити Web App', web_app=WebAppInfo(url=webapp_url))])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
 
 MAIN_MARKUP = get_main_keyboard()
 
