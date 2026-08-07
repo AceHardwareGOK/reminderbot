@@ -414,6 +414,21 @@ class ReminderManager:
             reply_markup=reply_markup
         )
 
+        # Log notification entry in database for WebApp Notifications tab
+        try:
+            desc = task.get('description', 'Нагадування')
+            now_kyiv_date = datetime.now(TZ).strftime('%Y-%m-%d')
+            await self.db.add_notification(
+                user_id=user_id,
+                task_id=task['task_id'],
+                reminder_instance_id=f"{reminder_time}_{now_kyiv_date}",
+                title=f"🔔 Нагадування: {reminder_time}",
+                message=desc,
+                type_='reminder'
+            )
+        except Exception as e:
+            logger.error(f"Failed to save notification to database log: {e}")
+
     async def _schedule_next_reminder(self, user_id: int, task: Dict, 
                                      reminder_time: str, reminder_instance_id: str):
         """Schedule the next reminder after interval"""

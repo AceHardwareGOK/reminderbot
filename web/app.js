@@ -139,6 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (targetTab === 'calendar') {
                 renderCalendar();
+            } else if (targetTab === 'notifications') {
+                loadNotifications();
             }
         });
     });
@@ -1098,11 +1100,169 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function escapeHtml(text) {
-
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
 
+    // --- Notifications Logic ---
+    let notifications = [];
+    let currentNotifFilter = 'all';
+
+    async function loadNotifications() {
+        try {
+            const data = await apiRequest('/api/notifications');
+            if (data && data.status === 'ok') {
+                notifications = data.notifications || [];
+                updateUnreadBadge(data.unread_count || 0);
+                renderNotificationsList();
+            }
+        } catch (err) {
+            console.error('Error loading notifications:', err);
+        }
+    }
+
+    function updateUnreadBadge(count) {
+        const badgeEl = document.getElementById('unread-badge');
+        if (!badgeEl) return;
+        if (count > 0) {
+            badgeEl.textContent = count > 99 ? '99+' : count;
+            badgeEl.classList.remove('hidden');
+        } else {
+            badgeEl.classList.add('hidden');
+        }
+    }
+
+    function renderNotificationsList() {
+        const container = document.getElementById('notifications-container');
+        if (!container) return;
+
+        let filtered = [...notifications];
+        const todayStr = getLocalDateISO(new Date());
+
+        if (currentNotifFilter === 'unread') {
+            filtered = filtered.filter(n => !n.is_read);
+        } else if (currentNotifFilter === 'today') {
+            filtered = filtered.filter(n => n.created_at && n.created_at.startsWith(todayStr));
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="loading-spinner">
+                    🔔 ${currentNotifFilter === 'unread' ? 'Немає непрочитаних сповіщень' : 'Історія сповіщень порожня'}
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = filtered.map(notif => {
+            const isUnread = !notif.is_read;
+            const timeStr = notif.created_at ? notif.created_at.replace('T', ' ').substring(0, 16) : '';
+
+            return `
+                <div class="notification-card ${isUnread ? 'unread' : ''}" data-id="${notif.id}">
+                    <div class="notif-header">
+                        <div class="notif-title">
+                            ${isUnread ? '🔵' : '⚪️'} ${escapeHtml(notif.title || 'Сповіщення')}
+                        </div>
+                        <span class="notif-time">${timeStr}</span>
+                    </div>
+                    <div class="notif-body">${escapeHtml(notif.message || '')}</div>
+                    <div class="notif-card-actions">
+                        ${isUnread ? `<button class="btn-small btn-secondary mark-read-btn" data-id="${notif.id}">Позначити прочитаним</button>` : ''}
+                        <button class="btn-small btn-success notif-done-btn" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
+                        <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">⏸ Відкласти</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Attach listeners to dynamically created notification action buttons
+        container.querySelectorAll('.mark-read-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const id = btn.dataset.id;
+                try {
+                    const res = await apiRequest(`/api/notifications/${id}/read`, { method: 'POST' });
+                    if (res && res.status === 'ok') {
+                        updateUnreadBadge(res.unread_count || 0);
+                        loadNotifications();
+                    }
+                } catch (err) {
+                    console.error('Error marking read:', err);
+                }
+            });
+        });
+
+        container.querySelectorAll('.notif-done-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const taskId = btn.dataset.taskId;
+                const instId = btn.dataset.instId;
+                try {
+                    await apiRequest(`/api/tasks/${taskId}/complete`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reminder_instance_id: instId })
+                    });
+                    showToast('✅ Нагадування виконано!');
+                    loadTasks();
+                    loadNotifications();
+                } catch (err) {
+                    console.error('Error completing task from notification:', err);
+                }
+            });
+        });
+
+        container.querySelectorAll('.notif-snooze-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                selectedSnoozeTaskId = parseInt(btn.dataset.taskId);
+                const titleEl = document.getElementById('snooze-modal-title');
+                if (titleEl) titleEl.textContent = `⏸ Відкласти завдання #${selectedSnoozeTaskId}`;
+                if (snoozeModal) snoozeModal.classList.remove('hidden');
+            });
+        });
+    }
+
+    // Filter chips for Notifications
+    const notifFilterChips = document.querySelectorAll('.notif-filter-chip');
+    notifFilterChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            notifFilterChips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            currentNotifFilter = chip.dataset.filter;
+            renderNotificationsList();
+        });
+    });
+
+    // Actions in Notification header
+    const readAllNotifsBtn = document.getElementById('read-all-notifs-btn');
+    if (readAllNotifsBtn) {
+        readAllNotifsBtn.addEventListener('click', async () => {
+            try {
+                await apiRequest('/api/notifications/read_all', { method: 'POST' });
+                showToast('✅ Усі сповіщення позначено прочитаними');
+                loadNotifications();
+            } catch (err) {
+                console.error('Error reading all notifications:', err);
+            }
+        });
+    }
+
+    const clearNotifsBtn = document.getElementById('clear-notifs-btn');
+    if (clearNotifsBtn) {
+        clearNotifsBtn.addEventListener('click', async () => {
+            if (!confirm('Ви дійсно бажаєте очистити історію сповіщень?')) return;
+            try {
+                await apiRequest('/api/notifications/clear', { method: 'POST' });
+                showToast('🗑 Історію сповіщень очищено');
+                loadNotifications();
+            } catch (err) {
+                console.error('Error clearing notifications:', err);
+            }
+        });
+    }
+
     loadTasks();
+    loadNotifications();
 });

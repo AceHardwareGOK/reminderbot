@@ -408,3 +408,45 @@ async def clear_snooze_all(
     await db_manager.clear_user_snooze(user_id)
     return {"status": "ok", "cleared": True}
 
+
+# --- Notifications API Endpoints ---
+@router.get("/notifications")
+async def get_notifications(
+    limit: int = 50,
+    user_id: int = Depends(get_current_user)
+):
+    """Отримати сповіщення та кількість непрочитаних"""
+    items = await db_manager.get_notifications(user_id=user_id, limit=limit)
+    unread_count = await db_manager.get_unread_notifications_count(user_id=user_id)
+    return {
+        "status": "ok",
+        "notifications": items,
+        "unread_count": unread_count
+    }
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: int,
+    user_id: int = Depends(get_current_user)
+):
+    """Позначити сповіщення як прочитане"""
+    await db_manager.mark_notification_read(user_id=user_id, notification_id=notification_id)
+    unread_count = await db_manager.get_unread_notifications_count(user_id=user_id)
+    return {"status": "ok", "unread_count": unread_count}
+
+@router.post("/notifications/read_all")
+async def mark_all_notifications_read(
+    user_id: int = Depends(get_current_user)
+):
+    """Позначити всі сповіщення як прочитані"""
+    await db_manager.mark_all_notifications_read(user_id=user_id)
+    return {"status": "ok", "unread_count": 0}
+
+@router.post("/notifications/clear")
+async def clear_notifications(
+    user_id: int = Depends(get_current_user)
+):
+    """Очистити історію сповіщень"""
+    await db_manager.clear_notifications(user_id=user_id)
+    return {"status": "ok", "cleared": True}
+

@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="app.css?v=1.0.8">
+    <link rel="stylesheet" href="app.css?v=1.0.9">
 </head>
 <body>
     <div id="app">
@@ -73,6 +73,25 @@
                 <div class="calendar-day-details">
                     <h4 id="selected-date-title">Оберіть день у календарі</h4>
                     <div id="selected-date-tasks" class="tasks-list compact"></div>
+                </div>
+            </section>
+
+            <!-- Вкладка 3: Сповіщення -->
+            <section id="tab-notifications" class="tab-pane">
+                <div class="notifications-header-bar">
+                    <div class="filter-bar">
+                        <button class="notif-filter-chip active" data-filter="all">Всі</button>
+                        <button class="notif-filter-chip" data-filter="unread">Непрочитані</button>
+                        <button class="notif-filter-chip" data-filter="today">Сьогодні</button>
+                    </div>
+                    <div class="notif-actions">
+                        <button id="read-all-notifs-btn" class="btn-text-action" title="Прочитати все">✅ Прочитати все</button>
+                        <button id="clear-notifs-btn" class="btn-text-action danger-text" title="Очистити історію">🗑 Очистити</button>
+                    </div>
+                </div>
+
+                <div id="notifications-container" class="notifications-list">
+                    <div class="loading-spinner">Завантаження сповіщень...</div>
                 </div>
             </section>
         </main>
@@ -250,13 +269,20 @@
 
         <!-- Нижнє Навігаційне Меню (Bottom Navigation Bar) -->
         <nav class="bottom-nav">
-            <button class="nav-item active" data-tab="list">
+            <button class="nav-item active" data-tab="list" aria-label="Вкладка Завдання">
                 <span class="nav-icon">📋</span>
                 <span class="nav-label">Завдання</span>
             </button>
-            <button class="nav-item" data-tab="calendar">
+            <button class="nav-item" data-tab="calendar" aria-label="Вкладка Календар">
                 <span class="nav-icon">📅</span>
                 <span class="nav-label">Календар</span>
+            </button>
+            <button class="nav-item" data-tab="notifications" aria-label="Вкладка Сповіщення">
+                <span class="nav-icon">
+                    🔔
+                    <span id="unread-badge" class="nav-badge hidden">0</span>
+                </span>
+                <span class="nav-label">Сповіщення</span>
             </button>
         </nav>
 
@@ -264,6 +290,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.8"></script>
+    <script src="app.js?v=1.0.9"></script>
 </body>
 </html>

@@ -81,6 +81,24 @@ class DatabaseManager:
                 ON snoozed_reminders(user_id, task_id, reminder_instance_id)
             ''')
             
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS notifications_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    task_id INTEGER NOT NULL,
+                    reminder_instance_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    type TEXT DEFAULT 'reminder',
+                    is_read BOOLEAN DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            await conn.execute('''
+                CREATE INDEX IF NOT EXISTS idx_notifications_user 
+                ON notifications_log(user_id)
+            ''')
+            
             await conn.commit()
 
     async def add_task(self, user_id: int, description: str, days: List[int], 
@@ -399,5 +417,95 @@ class DatabaseManager:
                 WHERE user_id = ? AND task_id = 0 AND reminder_instance_id = '*'
                 ''',
                 (user_id,),
+            )
+            await conn.commit()
+
+    # --- Notifications Log Methods ---
+    async def add_notification(
+        self,
+        user_id: int,
+        task_id: int,
+        reminder_instance_id: str,
+        title: str,
+        message: str,
+        type_: str = 'reminder'
+    ) -> int:
+        """Add a notification entry to log."""
+        async with self._get_connection() as conn:
+            cursor = await conn.execute(
+                '''
+                INSERT INTO notifications_log (user_id, task_id, reminder_instance_id, title, message, type)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''',
+                (user_id, task_id, reminder_instance_id, title, message, type_)
+            )
+            await conn.commit()
+            return cursor.lastrowid
+
+    async def get_notifications(self, user_id: int, limit: int = 50) -> List[Dict]:
+        """Get recent notifications for a user."""
+        async with self._get_connection() as conn:
+            cursor = await conn.execute(
+                '''
+                SELECT id, user_id, task_id, reminder_instance_id, title, message, type, is_read, created_at
+                FROM notifications_log
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+                ''',
+                (user_id, limit)
+            )
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def get_unread_notifications_count(self, user_id: int) -> int:
+        """Get count of unread notifications for user."""
+        async with self._get_connection() as conn:
+            cursor = await conn.execute(
+                '''
+                SELECT COUNT(*) as unread_count
+                FROM notifications_log
+                WHERE user_id = ? AND is_read = 0
+                ''',
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+            return row['unread_count'] if row else 0
+
+    async def mark_notification_read(self, user_id: int, notification_id: int) -> None:
+        """Mark specific notification as read."""
+        async with self._get_connection() as conn:
+            await conn.execute(
+                '''
+                UPDATE notifications_log
+                SET is_read = 1
+                WHERE id = ? AND user_id = ?
+                ''',
+                (notification_id, user_id)
+            )
+            await conn.commit()
+
+    async def mark_all_notifications_read(self, user_id: int) -> None:
+        """Mark all notifications of a user as read."""
+        async with self._get_connection() as conn:
+            await conn.execute(
+                '''
+                UPDATE notifications_log
+                SET is_read = 1
+                WHERE user_id = ? AND is_read = 0
+                ''',
+                (user_id,)
+            )
+            await conn.commit()
+
+    async def clear_notifications(self, user_id: int) -> None:
+        """Clear notifications history for a user."""
+        async with self._get_connection() as conn:
+            await conn.execute(
+                '''
+                DELETE FROM notifications_log
+                WHERE user_id = ?
+                ''',
+                (user_id,)
             )
             await conn.commit()
