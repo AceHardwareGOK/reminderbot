@@ -611,6 +611,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 daysText = task.days.map(d => daysNames[d]).join(', ');
             }
 
+            const nowHM = new Date().toTimeString().substring(0, 5);
+            const isDue = task.time_statuses && task.time_statuses.some(st => st.status === 'past' || st.status === 'completed' || (st.status === 'next' && st.time <= nowHM));
+            const snoozeBtnLabel = isDue ? '🔁 Повторити' : '⏸ Відкласти';
+
             let timeSlotsHtml = '';
             if (task.time_statuses && task.time_statuses.length > 0) {
                 timeSlotsHtml = task.time_statuses.map(st => {
@@ -645,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="task-actions">
                     <button class="btn-small btn-success complete-btn" data-id="${task.task_id}">✅ Готово</button>
                     <button class="btn-small btn-secondary edit-btn" data-id="${task.task_id}">✏️ Редагувати</button>
-                    <button class="btn-small btn-primary snooze-btn" data-id="${task.task_id}">⏸ Відкласти</button>
+                    <button class="btn-small btn-primary snooze-btn" data-id="${task.task_id}" data-is-due="${isDue}">${snoozeBtnLabel}</button>
                     <button class="btn-small btn-danger delete-btn" data-id="${task.task_id}">🗑 Видалити</button>
                 </div>
             `;
@@ -701,8 +705,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('.snooze-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 selectedSnoozeTaskId = e.currentTarget.dataset.id;
+                const isDue = e.currentTarget.dataset.isDue === 'true';
                 const titleEl = document.getElementById('snooze-modal-title');
-                if (titleEl) titleEl.textContent = '⏸ Відкласти нагадування';
+                if (titleEl) titleEl.textContent = isDue ? '🔁 Повторити нагадування' : '⏸ Відкласти нагадування';
                 if (snoozeModal) snoozeModal.classList.remove('hidden');
             });
         });
@@ -1578,7 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 actionsHtml = `
                     <button class="btn-small btn-success notif-done-btn" data-id="${notif.id}" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
-                    <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">⏸ Відкласти</button>
+                    <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">🔁 Повторити</button>
                 `;
             }
 
@@ -1626,7 +1631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 selectedSnoozeTaskId = parseInt(btn.dataset.taskId);
                 const titleEl = document.getElementById('snooze-modal-title');
-                if (titleEl) titleEl.textContent = `⏸ Відкласти завдання #${selectedSnoozeTaskId}`;
+                if (titleEl) titleEl.textContent = `🔁 Повторити завдання #${selectedSnoozeTaskId}`;
                 if (snoozeModal) snoozeModal.classList.remove('hidden');
             });
         });

@@ -389,6 +389,13 @@ async def snooze_task(
     for inst_id in set(inst_ids):
         await db_manager.set_reminder_snooze(user_id, task_id, inst_id, snoozed_until)
 
+    if reminder_manager:
+        try:
+            reminder_manager.schedule_snooze_reminder(user_id, task, payload.minutes)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error scheduling snooze job for task {task_id}: {e}")
+
     try:
         async with db_manager._get_connection() as conn:
             await conn.execute(
@@ -417,6 +424,16 @@ async def snooze_all_tasks(
     snoozed_until = now + timedelta(minutes=payload.minutes)
     
     await db_manager.set_user_snooze(user_id, snoozed_until)
+
+    if reminder_manager:
+        try:
+            user_tasks = await db_manager.get_user_tasks(user_id)
+            for t in user_tasks:
+                if not t.get('is_completed'):
+                    reminder_manager.schedule_snooze_reminder(user_id, t, payload.minutes)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error scheduling snooze-all jobs: {e}")
 
     return {"status": "ok", "snoozed_until": snoozed_until.isoformat()}
 

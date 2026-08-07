@@ -994,6 +994,12 @@ class BotHandlers:
                 snoozed_until=snoozed_until,
             )
 
+        if self.reminder_manager:
+            try:
+                self.reminder_manager.schedule_snooze_reminder(user_id, task, minutes)
+            except Exception as e:
+                logger.error(f"Error scheduling snooze in bot handler: {e}")
+
 
     async def handle_snooze_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle text input for custom snooze intervals and 'snooze all' flow."""

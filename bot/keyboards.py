@@ -27,17 +27,18 @@ CANCEL_KEYBOARD = [['🏠 Скасувати']]
 CANCEL_MARKUP = ReplyKeyboardMarkup(CANCEL_KEYBOARD, resize_keyboard=True)
 
 
-def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int) -> InlineKeyboardMarkup:
+def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int, is_due: bool = False) -> InlineKeyboardMarkup:
     """Build interactive dashboard keyboard with pagination and action buttons."""
     buttons = []
     
+    snooze_label = "🔁 Повторити" if is_due else "⏸ Відкласти"
     # 2 rows of action buttons for Telegram chat to fit full labels without truncation:
     row1 = [
         InlineKeyboardButton("✅ Готово", callback_data=f"dashdone_{task_id}", api_kwargs={'style': 'success'}),
         InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task_id}")
     ]
     row2 = [
-        InlineKeyboardButton("⏸ Відкласти", callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'}),
+        InlineKeyboardButton(snooze_label, callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task_id}", api_kwargs={'style': 'danger'})
     ]
     buttons.append(row1)
@@ -67,7 +68,7 @@ def build_reminder_keyboard(task_id: int, reminder_code: str) -> InlineKeyboardM
                 api_kwargs={'style': 'success'}
             ),
             InlineKeyboardButton(
-                "⏸ Відкласти",
+                "🔁 Повторити",
                 callback_data=f"snooze_{task_id}_{reminder_code}",
                 api_kwargs={'style': 'primary'}
             )

@@ -376,6 +376,26 @@ class ReminderManager:
         except Exception as e:
             logger.error(f"Error sending reminder to user {user_id}: {e}")
 
+    def schedule_snooze_reminder(self, user_id: int, task: Dict, minutes: int, time_str: str = None):
+        """Schedule a one-time snooze/repeat job after N minutes."""
+        task_id = task['task_id']
+        run_date = datetime.now(TZ) + timedelta(minutes=minutes)
+        if not time_str:
+            times = task.get('times', [])
+            time_str = times[0] if times else datetime.now(TZ).strftime('%H:%M')
+            
+        job_id = f"snooze_{user_id}_{task_id}_{int(run_date.timestamp())}"
+        
+        self.scheduler.add_job(
+            func=self._send_reminder_async,
+            trigger=DateTrigger(run_date=run_date, timezone=TZ),
+            id=job_id,
+            args=[user_id, task, time_str],
+            replace_existing=True,
+            misfire_grace_time=300
+        )
+        logger.info(f"Scheduled snooze reminder for task {task_id} in {minutes} min at {run_date.isoformat()}")
+
     async def _send_reminder_message(self, user_id: int, task: Dict, reminder_time: str):
         """Send reminder message to user"""
         if not self.application:
@@ -390,17 +410,13 @@ class ReminderManager:
                 "✅ Готово", 
                 callback_data=f"done_{task['task_id']}_{reminder_code}",
                 api_kwargs={'style': 'success'}
+            ),
+            InlineKeyboardButton(
+                "🔁 Повторити", 
+                callback_data=f"snooze_{task['task_id']}_{reminder_code}",
+                api_kwargs={'style': 'primary'}
             )
         ]
-        
-        if task['interval_minutes'] > 0:
-            buttons.append(
-                InlineKeyboardButton(
-                    "⏰ Відкласти",
-                    callback_data=f"snooze_{task['task_id']}_{reminder_code}",
-                    api_kwargs={'style': 'primary'}
-                )
-            )
             
         keyboard = [buttons]
         reply_markup = InlineKeyboardMarkup(keyboard)
