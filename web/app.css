@@ -1379,3 +1379,41 @@ body {
     padding: 20px 0;
     font-size: 14px;
 }
+
+/* Custom Snooze Input Box */
+.custom-snooze-box {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"] .custom-snooze-box {
+    border-top-color: rgba(0, 0, 0, 0.1);
+}
+
+.custom-snooze-box .form-label {
+    font-size: 13px;
+    color: var(--hint-color);
+    margin-bottom: 8px;
+    display: block;
+}
+
+.custom-snooze-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.custom-snooze-input-group input {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.custom-snooze-btn {
+    padding: 0 18px;
+    height: 42px;
+    border-radius: var(--border-radius);
+    font-weight: bold;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+}

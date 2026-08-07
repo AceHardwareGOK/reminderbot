@@ -287,6 +287,13 @@
                     <button class="snooze-opt-btn" data-minutes="180">⏱ 3 години</button>
                     <button class="snooze-opt-btn danger-opt" id="clear-snooze-btn">▶️ Відновити всі</button>
                 </div>
+                <div class="custom-snooze-box">
+                    <label for="custom-snooze-input" class="form-label">✍️ Власний інтервал (у хвилинах):</label>
+                    <div class="custom-snooze-input-group">
+                        <input type="number" id="custom-snooze-input" class="form-input" placeholder="напр. 45 або 90" min="1" max="1440">
+                        <button id="custom-snooze-submit-btn" class="btn-primary custom-snooze-btn">ОК</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -313,6 +320,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.24"></script>
+    <script src="app.js?v=1.0.25"></script>
 </body>
 </html>

@@ -1201,6 +1201,52 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const customSnoozeInput = document.getElementById('custom-snooze-input');
+    const customSnoozeSubmitBtn = document.getElementById('custom-snooze-submit-btn');
+
+    async function applyCustomSnooze() {
+        if (!customSnoozeInput) return;
+        const minutes = parseInt(customSnoozeInput.value, 10);
+        if (isNaN(minutes) || minutes <= 0) {
+            showToast('⚠️ Введіть коректну кількість хвилин!');
+            return;
+        }
+
+        try {
+            if (selectedSnoozeTaskId) {
+                await apiRequest(`/api/tasks/${selectedSnoozeTaskId}/snooze`, {
+                    method: 'POST',
+                    body: JSON.stringify({ minutes })
+                });
+                showToast(`⏱ Інтервал оновлено на ${minutes} хв`);
+            } else {
+                await apiRequest('/api/snooze-all', {
+                    method: 'POST',
+                    body: JSON.stringify({ minutes })
+                });
+                showToast(`⏱ Усі нагадування оновлено на ${minutes} хв`);
+            }
+
+            customSnoozeInput.value = '';
+            if (snoozeModal) snoozeModal.classList.add('hidden');
+            loadTasks();
+        } catch (err) {
+            console.error('Custom snooze error:', err);
+        }
+    }
+
+    if (customSnoozeSubmitBtn) {
+        customSnoozeSubmitBtn.addEventListener('click', applyCustomSnooze);
+    }
+    if (customSnoozeInput) {
+        customSnoozeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyCustomSnooze();
+            }
+        });
+    }
+
     // Фільтри
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
