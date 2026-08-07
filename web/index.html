@@ -289,9 +289,9 @@
                 </div>
                 <div class="custom-snooze-box">
                     <label for="custom-snooze-input" class="form-label">✍️ Власний інтервал (у хвилинах):</label>
-                    <div class="custom-snooze-input-group">
-                        <input type="number" id="custom-snooze-input" class="form-input" placeholder="напр. 45 або 90" min="1" max="1440">
-                        <button id="custom-snooze-submit-btn" class="btn-primary custom-snooze-btn">ОК</button>
+                    <div class="interval-picker-row">
+                        <input type="number" id="custom-snooze-input" min="1" max="1440" placeholder="напр. 45 або 90" class="custom-picker">
+                        <button type="button" id="custom-snooze-submit-btn" class="btn-small btn-primary">Застосувати</button>
                     </div>
                 </div>
             </div>
@@ -320,6 +320,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.25"></script>
+    <script src="app.js?v=1.0.26"></script>
 </body>
 </html>
