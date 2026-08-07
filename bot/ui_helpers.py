@@ -222,8 +222,24 @@ def format_task_card(task: Dict, title: str = "📝 *Завдання*") -> str:
         else:
             days_str = escape_md('Не вказано')
             
-    times = task.get('times', [])
-    times_str = escape_md(', '.join(times)) if times else escape_md('Не вказано')
+    time_statuses = task.get('time_statuses')
+    if time_statuses:
+        formatted_times = []
+        for st in time_statuses:
+            status = st.get('status')
+            t_val = st.get('time')
+            if status == 'completed':
+                formatted_times.append(f"✅ {t_val}")
+            elif status == 'next':
+                formatted_times.append(f"⏳ {t_val}")
+            elif status == 'past':
+                formatted_times.append(f"⚠️ {t_val}")
+            else:
+                formatted_times.append(f"🕒 {t_val}")
+        times_str = escape_md(" | ".join(formatted_times))
+    else:
+        times = task.get('times', [])
+        times_str = escape_md(', '.join(times)) if times else escape_md('Не вказано')
     
     interval = task.get('interval_minutes', 0)
     if interval == 0:

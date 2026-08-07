@@ -288,6 +288,92 @@ body {
     gap: 4px;
 }
 
+/* Time Slots Visual Design */
+.time-slots-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.time-slots-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--hint-color);
+    margin-right: 2px;
+}
+
+.time-slot-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border: 1px solid transparent;
+    user-select: none;
+}
+
+.time-slot-chip:active {
+    transform: scale(0.94);
+}
+
+/* Completed Status */
+.time-slot-chip.completed {
+    background: rgba(81, 207, 102, 0.15);
+    color: #51cf66;
+    border-color: rgba(81, 207, 102, 0.3);
+    text-decoration: line-through;
+    opacity: 0.85;
+}
+
+/* Next / Active Status (Pulse effect) */
+.time-slot-chip.next {
+    background: linear-gradient(135deg, rgba(82, 136, 193, 0.35) 0%, rgba(100, 181, 246, 0.25) 100%);
+    color: #ffffff;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(100, 181, 246, 0.35);
+    animation: pulseGlow 2s infinite alternate;
+}
+
+@keyframes pulseGlow {
+    from {
+        box-shadow: 0 0 6px rgba(100, 181, 246, 0.3);
+    }
+    to {
+        box-shadow: 0 0 14px rgba(100, 181, 246, 0.6);
+    }
+}
+
+/* Upcoming Status */
+.time-slot-chip.upcoming {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text-color);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Past / Missed Status */
+.time-slot-chip.past {
+    background: rgba(255, 169, 77, 0.15);
+    color: #ffa94d;
+    border-color: rgba(255, 169, 77, 0.3);
+}
+
+.time-slot-label {
+    font-size: 10px;
+    font-weight: 500;
+    opacity: 0.85;
+    margin-left: 2px;
+}
+
 .task-actions {
     display: flex;
     flex-wrap: wrap;

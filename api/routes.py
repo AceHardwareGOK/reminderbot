@@ -64,6 +64,49 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
                 seen_insts.add(r['reminder_instance_id'])
         completed_today_count = len(seen_insts)
 
+    now_hm = now.strftime('%H:%M')
+
+    for task in tasks:
+        task_id = task['task_id']
+        times = task.get('times', [])
+        is_one_time = task.get('is_one_time', False)
+        one_time_date = task.get('one_time_date', '')
+        
+        statuses = []
+        next_found = False
+        sorted_times = sorted(times)
+        
+        for t_str in sorted_times:
+            t_clean = t_str.replace(":", "")
+            inst_id_simple = f"{task_id}_{t_clean}"
+            
+            is_comp = inst_id_simple in seen_insts or f"inst_{task_id}" in seen_insts
+            if is_one_time and one_time_date:
+                for d in str(one_time_date).split(','):
+                    d_clean = d.strip()[:10].replace("-", "")
+                    if d_clean and f"{task_id}_{d_clean}_{t_clean}" in seen_insts:
+                        is_comp = True
+                        break
+            
+            if is_comp:
+                statuses.append({"time": t_str, "status": "completed", "label": "Виконано"})
+            elif t_str > now_hm:
+                if not next_found:
+                    statuses.append({"time": t_str, "status": "next", "label": "Наступне"})
+                    next_found = True
+                else:
+                    statuses.append({"time": t_str, "status": "upcoming", "label": "Очікується"})
+            else:
+                statuses.append({"time": t_str, "status": "past", "label": "Пропущено"})
+
+        if not next_found:
+            past_indices = [i for i, s in enumerate(statuses) if s["status"] == "past"]
+            if past_indices:
+                statuses[past_indices[-1]]["status"] = "next"
+                statuses[past_indices[-1]]["label"] = "Наступне (пропущено)"
+                
+        task['time_statuses'] = statuses
+
     today_index = now.weekday()
     today_active_count = 0
     for t in tasks:

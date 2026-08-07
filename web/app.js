@@ -313,13 +313,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 daysText = task.days.map(d => daysNames[d]).join(', ');
             }
 
+            let timeSlotsHtml = '';
+            if (task.time_statuses && task.time_statuses.length > 0) {
+                timeSlotsHtml = task.time_statuses.map(st => {
+                    let icon = '🕒';
+                    if (st.status === 'completed') icon = '✅';
+                    else if (st.status === 'next') icon = '⏳';
+                    else if (st.status === 'past') icon = '⚠️';
+                    
+                    const tClean = st.time.replace(':', '');
+                    const instId = `${task.task_id}_${tClean}`;
+                    return `<span class="time-slot-chip ${st.status}" data-task-id="${task.task_id}" data-inst-id="${instId}" title="${st.label}">
+                        ${icon} ${st.time} <span class="time-slot-label">(${st.label})</span>
+                    </span>`;
+                }).join('');
+            } else {
+                timeSlotsHtml = (task.times || []).map(t => `<span class="time-slot-chip upcoming">🕒 ${t}</span>`).join('');
+            }
+
             card.innerHTML = `
                 <div class="task-header">
                     <div class="task-title">${escapeHtml(task.description)}</div>
                     <span class="task-badge">${task.is_one_time ? 'Одноразове' : 'Повторюване'}</span>
                 </div>
                 <div class="task-details">
-                    <div class="task-detail-item">🕒 <strong>${task.times.join(', ')}</strong></div>
+                    <div class="time-slots-wrapper">
+                        <span class="time-slots-title">🕒 Час:</span>
+                        ${timeSlotsHtml}
+                    </div>
                     <div class="task-detail-item">📅 ${daysText}</div>
                     ${task.interval_minutes > 0 ? `<div class="task-detail-item">🔄 кожні ${task.interval_minutes} хв</div>` : ''}
                 </div>
@@ -332,6 +353,26 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
 
             container.appendChild(card);
+        });
+
+        // Слухачі для тапу по слоту часу
+        container.querySelectorAll('.time-slot-chip:not(.completed)').forEach(chip => {
+            chip.addEventListener('click', async (e) => {
+                const taskId = e.currentTarget.dataset.taskId;
+                const instId = e.currentTarget.dataset.instId;
+                if (!taskId) return;
+
+                try {
+                    await apiRequest(`/api/tasks/${taskId}/complete`, {
+                        method: 'POST',
+                        body: JSON.stringify({ reminder_instance_id: instId })
+                    });
+                    showToast('✅ Слот часу відмічено виконаним!');
+                    loadTasks();
+                } catch (err) {
+                    console.error('Time slot complete error:', err);
+                }
+            });
         });
 
         container.querySelectorAll('.complete-btn').forEach(btn => {
