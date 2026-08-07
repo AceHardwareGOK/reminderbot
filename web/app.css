@@ -1265,10 +1265,39 @@ body {
     margin-top: 4px;
 }
 
-/* Light Theme overrides for Notifications */
+/* Light Theme overrides for Notifications and Chips */
 [data-theme="light"] .notif-filter-chip {
-    border-color: rgba(0, 0, 0, 0.1);
-    background: #ffffff;
+    border: 1px solid rgba(43, 115, 210, 0.2) !important;
+    background: #ffffff !important;
+    color: #1e293b !important;
+}
+
+[data-theme="light"] .notif-filter-chip.active {
+    background: #2b73d2 !important;
+    color: #ffffff !important;
+    border-color: #2b73d2 !important;
+    box-shadow: 0 3px 10px rgba(43, 115, 210, 0.35) !important;
+}
+
+[data-theme="light"] .preset-chip,
+[data-theme="light"] .time-preset-chip,
+[data-theme="light"] .edit-time-preset-chip,
+[data-theme="light"] .day-chip,
+[data-theme="light"] .interval-chip {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+}
+
+[data-theme="light"] .preset-chip.active,
+[data-theme="light"] .time-preset-chip.active,
+[data-theme="light"] .edit-time-preset-chip.active,
+[data-theme="light"] .day-chip.active,
+[data-theme="light"] .interval-chip.active {
+    background: #2b73d2 !important;
+    color: #ffffff !important;
+    border-color: #2b73d2 !important;
+    box-shadow: 0 3px 10px rgba(43, 115, 210, 0.35) !important;
 }
 
 [data-theme="light"] .notification-card {
