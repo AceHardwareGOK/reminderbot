@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="app.css?v=1.0.12">
+    <link rel="stylesheet" href="app.css?v=1.0.13">
 </head>
 <body>
     <div id="app">
@@ -177,7 +177,7 @@
                             <button type="button" class="interval-chip" data-minutes="15">15 хв</button>
                             <button type="button" class="interval-chip" data-minutes="30">30 хв</button>
                             <button type="button" class="interval-chip" data-minutes="60">1 год</button>
-                            <button type="button" class="interval-chip" data-minutes="120">2 год</button>
+                            <button type="button" class="interval-chip" id="custom-interval-chip" data-minutes="custom">✏️ Власний</button>
                         </div>
                     </div>
 
@@ -226,6 +226,7 @@
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="15">15 хв</button>
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="30">30 хв</button>
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="60">1 год</button>
+                            <button type="button" class="interval-chip edit-interval-chip" id="edit-custom-interval-chip" data-minutes="custom">✏️ Власний</button>
                         </div>
                     </div>
 
@@ -288,6 +289,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.12"></script>
+    <script src="app.js?v=1.0.13"></script>
 </body>
 </html>

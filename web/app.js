@@ -355,9 +355,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const intervalChips = document.querySelectorAll('.interval-chip:not(.edit-interval-chip)');
     intervalChips.forEach(chip => {
         chip.addEventListener('click', (e) => {
+            const minsAttr = e.currentTarget.dataset.minutes;
+            if (minsAttr === 'custom') {
+                const val = prompt('Введіть інтервал повтору у хвилинах (наприклад 45):', selectedInterval && selectedInterval > 0 ? selectedInterval : '45');
+                if (val !== null) {
+                    const parsed = parseInt(val.trim());
+                    if (!isNaN(parsed) && parsed > 0) {
+                        selectedInterval = parsed;
+                        intervalChips.forEach(c => c.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                        e.currentTarget.textContent = `✏️ ${parsed} хв`;
+                    } else if (val.trim() === '0') {
+                        selectedInterval = 0;
+                        intervalChips.forEach(c => c.classList.remove('active'));
+                        document.querySelector('.interval-chip[data-minutes="0"]')?.classList.add('active');
+                        e.currentTarget.textContent = '✏️ Власний';
+                    }
+                }
+                return;
+            }
+
+            const customChip = document.getElementById('custom-interval-chip');
+            if (customChip) customChip.textContent = '✏️ Власний';
+
             intervalChips.forEach(c => c.classList.remove('active'));
             e.currentTarget.classList.add('active');
-            selectedInterval = parseInt(e.currentTarget.dataset.minutes) || 0;
+            selectedInterval = parseInt(minsAttr) || 0;
         });
     });
     // Завантаження завдань з API
@@ -557,10 +580,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderEditTimeTags();
 
         editSelectedInterval = task.interval_minutes || 0;
+        let isStandardMatched = false;
+        const editCustomChip = document.getElementById('edit-custom-interval-chip');
+
         document.querySelectorAll('.edit-interval-chip').forEach(chip => {
-            const mins = parseInt(chip.dataset.minutes) || 0;
-            chip.classList.toggle('active', mins === editSelectedInterval);
+            const minsAttr = chip.dataset.minutes;
+            if (minsAttr !== 'custom') {
+                const mins = parseInt(minsAttr) || 0;
+                const isMatch = mins === editSelectedInterval;
+                chip.classList.toggle('active', isMatch);
+                if (isMatch) isStandardMatched = true;
+            }
         });
+
+        if (!isStandardMatched && editSelectedInterval > 0 && editCustomChip) {
+            editCustomChip.classList.add('active');
+            editCustomChip.textContent = `✏️ ${editSelectedInterval} хв`;
+        } else if (editCustomChip) {
+            editCustomChip.classList.remove('active');
+            editCustomChip.textContent = '✏️ Власний';
+        }
 
         document.querySelectorAll('.edit-day-chip').forEach(chip => {
             const dayVal = parseInt(chip.dataset.day);
@@ -700,9 +739,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.edit-interval-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
+            const minsAttr = e.currentTarget.dataset.minutes;
+            if (minsAttr === 'custom') {
+                const val = prompt('Введіть інтервал повтору у хвилинах (наприклад 45):', editSelectedInterval && editSelectedInterval > 0 ? editSelectedInterval : '45');
+                if (val !== null) {
+                    const parsed = parseInt(val.trim());
+                    if (!isNaN(parsed) && parsed > 0) {
+                        editSelectedInterval = parsed;
+                        document.querySelectorAll('.edit-interval-chip').forEach(c => c.classList.remove('active'));
+                        e.currentTarget.classList.add('active');
+                        e.currentTarget.textContent = `✏️ ${parsed} хв`;
+                    } else if (val.trim() === '0') {
+                        editSelectedInterval = 0;
+                        document.querySelectorAll('.edit-interval-chip').forEach(c => c.classList.remove('active'));
+                        document.querySelector('.edit-interval-chip[data-minutes="0"]')?.classList.add('active');
+                        e.currentTarget.textContent = '✏️ Власний';
+                    }
+                }
+                return;
+            }
+
+            const editCustomChip = document.getElementById('edit-custom-interval-chip');
+            if (editCustomChip) editCustomChip.textContent = '✏️ Власний';
+
             document.querySelectorAll('.edit-interval-chip').forEach(c => c.classList.remove('active'));
             e.currentTarget.classList.add('active');
-            editSelectedInterval = parseInt(e.currentTarget.dataset.minutes) || 0;
+            editSelectedInterval = parseInt(minsAttr) || 0;
         });
     });
 

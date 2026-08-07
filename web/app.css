@@ -754,6 +754,16 @@ body {
     border-color: var(--button-color);
 }
 
+#custom-interval-chip, #edit-custom-interval-chip {
+    border-style: dashed;
+    border-color: rgba(82, 136, 193, 0.4);
+}
+
+#custom-interval-chip.active, #edit-custom-interval-chip.active {
+    border-style: solid;
+    border-color: var(--button-color);
+}
+
 /* Floating Action Button (FAB) */
 .fab-btn {
     position: fixed;
