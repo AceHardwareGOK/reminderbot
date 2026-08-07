@@ -376,10 +376,35 @@ class ReminderManager:
         except Exception as e:
             logger.error(f"Error sending reminder to user {user_id}: {e}")
 
-    def schedule_snooze_reminder(self, user_id: int, task: Dict, minutes: int, time_str: str = None):
-        """Schedule a one-time snooze/repeat job after N minutes."""
+    async def _send_snoozed_reminder_async(self, user_id: int, task: Dict, reminder_time: str):
+        """Async handler for scheduled snooze jobs: clears snooze record and forces message send."""
+        try:
+            task_id = task['task_id']
+            times = task.get("times", [])
+            is_one_time = task.get("is_one_time", False)
+            one_time_date = task.get("one_time_date", "")
+
+            inst_ids = [f"{task_id}_snooze", f"inst_{task_id}"]
+            for t in times:
+                t_clean = t.replace(":", "")
+                inst_ids.append(f"{task_id}_{t_clean}")
+                if is_one_time and one_time_date:
+                    for d in str(one_time_date).split(","):
+                        d_clean = d.strip()[:10].replace("-", "")
+                        if d_clean:
+                            inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+
+            for inst_id in set(inst_ids):
+                await self.db.clear_reminder_snooze(user_id, task_id, inst_id)
+
+            await self._send_reminder_message(user_id, task, reminder_time)
+        except Exception as e:
+            logger.error(f"Error in _send_snoozed_reminder_async for user {user_id}: {e}")
+
+    def schedule_snooze_reminder(self, user_id: int, task: Dict, snoozed_until: datetime, time_str: str = None):
+        """Schedule a one-time snooze/repeat job at exact snoozed_until timestamp."""
         task_id = task['task_id']
-        run_date = datetime.now(TZ) + timedelta(minutes=minutes)
+        run_date = snoozed_until
         if not time_str:
             times = task.get('times', [])
             time_str = times[0] if times else datetime.now(TZ).strftime('%H:%M')
@@ -387,14 +412,14 @@ class ReminderManager:
         job_id = f"snooze_{user_id}_{task_id}_{int(run_date.timestamp())}"
         
         self.scheduler.add_job(
-            func=self._send_reminder_async,
+            func=self._send_snoozed_reminder_async,
             trigger=DateTrigger(run_date=run_date, timezone=TZ),
             id=job_id,
             args=[user_id, task, time_str],
             replace_existing=True,
             misfire_grace_time=300
         )
-        logger.info(f"Scheduled snooze reminder for task {task_id} in {minutes} min at {run_date.isoformat()}")
+        logger.info(f"Scheduled snooze reminder for task {task_id} at {run_date.isoformat()}")
 
     async def _send_reminder_message(self, user_id: int, task: Dict, reminder_time: str):
         """Send reminder message to user"""

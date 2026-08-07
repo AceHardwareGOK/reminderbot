@@ -1032,7 +1032,7 @@ class BotHandlers:
 
         if self.reminder_manager:
             try:
-                self.reminder_manager.schedule_snooze_reminder(user_id, task, snooze_delay_minutes)
+                self.reminder_manager.schedule_snooze_reminder(user_id, task, snoozed_until)
             except Exception as e:
                 logger.error(f"Error scheduling snooze in bot handler: {e}")
 

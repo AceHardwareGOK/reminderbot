@@ -477,7 +477,7 @@ async def snooze_task(
 
     if reminder_manager:
         try:
-            reminder_manager.schedule_snooze_reminder(user_id, task, snooze_delay_minutes)
+            reminder_manager.schedule_snooze_reminder(user_id, task, snoozed_until)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error scheduling snooze job for task {task_id}: {e}")
