@@ -588,6 +588,20 @@ async def get_notifications(
 
         item['is_completed'] = is_done
 
+        c_at_raw = item.get('created_at')
+        if c_at_raw:
+            try:
+                dt_parsed = db_manager._parse_date(c_at_raw)
+                if dt_parsed:
+                    if dt_parsed.tzinfo is None:
+                        dt_utc = dt_parsed.replace(tzinfo=ZoneInfo("UTC"))
+                        dt_local = dt_utc.astimezone(ZoneInfo(TIMEZONE))
+                    else:
+                        dt_local = dt_parsed.astimezone(ZoneInfo(TIMEZONE))
+                    item['created_at'] = dt_local.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass
+
     active_unread_count = sum(1 for item in items if not item.get('is_read') and not item.get('is_completed'))
 
     return {

@@ -430,14 +430,15 @@ class DatabaseManager:
         message: str,
         type_: str = 'reminder'
     ) -> int:
-        """Add a notification entry to log."""
+        """Add a notification entry to log with local timezone timestamp."""
+        now_local = datetime.now(TZ).strftime('%Y-%m-%d %H:%M:%S')
         async with self._get_connection() as conn:
             cursor = await conn.execute(
                 '''
-                INSERT INTO notifications_log (user_id, task_id, reminder_instance_id, title, message, type)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO notifications_log (user_id, task_id, reminder_instance_id, title, message, type, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''',
-                (user_id, task_id, reminder_instance_id, title, message, type_)
+                (user_id, task_id, reminder_instance_id, title, message, type_, now_local)
             )
             await conn.commit()
             return cursor.lastrowid
