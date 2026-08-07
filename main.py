@@ -26,6 +26,10 @@ async def add_tunnel_bypass_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Bypass-Tunnel-Reminder"] = "true"
     response.headers["Ngrok-Skip-Browser-Warning"] = "true"
+    if request.url.path.startswith("/web"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
 fastapi_app.include_router(api_router)

@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tasks = data.tasks || [];
 
             // Оновити лічильник та прогрес
-            const countEl = document.getElementById('tasks-count');
+            const countEl = document.getElementById('stats-subtitle') || document.getElementById('tasks-count');
             if (countEl) countEl.textContent = `${tasks.length} активних нагадувань`;
 
             const progressEl = document.getElementById('progress-percent');
@@ -717,11 +717,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function isTaskOnDate(t, cellDate, dayOfWeek) {
-        if (!t.is_one_time && t.days && (t.days.includes(dayOfWeek) || t.days.includes(String(dayOfWeek)) || t.days.includes(Number(dayOfWeek)))) return true;
-        if (t.is_one_time && t.one_time_date) {
+        if (!t) return false;
+
+        const isOneTime = Boolean(t.is_one_time && t.is_one_time !== 'false' && t.is_one_time !== '0');
+
+        if (!isOneTime) {
+            if (!t.days || !Array.isArray(t.days) || t.days.length === 0) return true;
+            return t.days.some(d => Number(d) === Number(dayOfWeek));
+        }
+
+        if (isOneTime && t.one_time_date) {
             const cellISO = getLocalDateISO(cellDate);
             const dates = String(t.one_time_date).split(',').map(d => d.trim());
             return dates.some(d => {
+                if (!d) return false;
                 const dClean = d.substring(0, 10);
                 if (dClean === cellISO) return true;
                 if (dClean.includes('.')) {
@@ -731,9 +740,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         return formatted === cellISO;
                     }
                 }
+                if (dClean.includes('-')) {
+                    const parts = dClean.split('-');
+                    if (parts.length === 3) {
+                        const formatted = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+                        return formatted === cellISO;
+                    }
+                }
                 return false;
             });
         }
+
         return false;
     }
 
