@@ -61,12 +61,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentCalDate = new Date();
     let selectedSnoozeTaskId = null;
 
-    // Стан обраних часів та інтервалу для створення
+    // Стан обраних дат, часів та інтервалу для створення
+    let selectedDates = [];
+    let activeDateIndex = 0;
     let selectedTimes = ['09:00'];
     let activeTimeIndex = 0;
     let selectedInterval = 0;
 
     // Стан для редагування
+    let editSelectedDates = [];
+    let editActiveDateIndex = 0;
     let editSelectedTimes = [];
     let editActiveTimeIndex = 0;
     let editSelectedInterval = 0;
@@ -226,6 +230,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
+    // Рендеринг тегів дат (Створення)
+    function renderDateTags() {
+        const container = document.getElementById('selected-dates-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (selectedDates.length === 0) {
+            const todayStr = getLocalDateISO();
+            selectedDates = [todayStr];
+            activeDateIndex = 0;
+            if (datePicker) datePicker.value = todayStr;
+        }
+
+        if (activeDateIndex < 0 || activeDateIndex >= selectedDates.length) {
+            activeDateIndex = Math.max(0, selectedDates.length - 1);
+        }
+
+        selectedDates.forEach((d, idx) => {
+            const tag = document.createElement('span');
+            const isActive = (idx === activeDateIndex);
+            tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
+            tag.innerHTML = `📅 ${d} <button type="button" class="remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">❌</button>`;
+
+            tag.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-date-tag')) return;
+                activeDateIndex = idx;
+                if (datePicker) datePicker.value = selectedDates[idx];
+                renderDateTags();
+            });
+
+            container.appendChild(tag);
+        });
+
+        container.querySelectorAll('.remove-date-tag').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idxToRemove = parseInt(e.currentTarget.dataset.index);
+                selectedDates.splice(idxToRemove, 1);
+
+                if (selectedDates.length === 0) {
+                    const fallback = getLocalDateISO();
+                    selectedDates = [fallback];
+                    activeDateIndex = 0;
+                    if (datePicker) datePicker.value = fallback;
+                } else {
+                    activeDateIndex = Math.min(activeDateIndex, selectedDates.length - 1);
+                    if (datePicker) datePicker.value = selectedDates[activeDateIndex];
+                }
+                renderDateTags();
+            });
+        });
+    }
+
+    const addDateBtn = document.getElementById('add-date-btn');
+    if (addDateBtn) {
+        addDateBtn.addEventListener('click', () => {
+            const curVal = datePicker ? datePicker.value : getLocalDateISO();
+            if (!selectedDates.includes(curVal)) {
+                selectedDates.push(curVal);
+                activeDateIndex = selectedDates.length - 1;
+            }
+            renderDateTags();
+        });
+    }
 
     // Рендеринг тегів часів (Створення)
     function renderTimeTags() {
@@ -567,6 +636,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editIdEl) editIdEl.value = task.task_id;
         if (editDescEl) editDescEl.value = task.description;
 
+        const editDatesGroup = document.getElementById('edit-dates-selector-group');
+        const editDaysGroup = document.getElementById('edit-days-group');
+
+        if (task.is_one_time) {
+            if (editDatesGroup) editDatesGroup.classList.remove('hidden');
+            if (editDaysGroup) editDaysGroup.classList.add('hidden');
+
+            if (task.one_time_date) {
+                editSelectedDates = task.one_time_date.split(',').map(s => s.trim()).filter(Boolean);
+            } else {
+                editSelectedDates = [getLocalDateISO()];
+            }
+            editActiveDateIndex = 0;
+            const editDatePicker = document.getElementById('edit-task-date-picker');
+            if (editDatePicker) editDatePicker.value = editSelectedDates[0] || getLocalDateISO();
+            renderEditDateTags();
+        } else {
+            if (editDatesGroup) editDatesGroup.classList.add('hidden');
+            if (editDaysGroup) editDaysGroup.classList.remove('hidden');
+        }
+
         editSelectedTimes = [...task.times];
         editActiveTimeIndex = 0;
         const editTimePicker = document.getElementById('edit-task-time-picker');
@@ -585,6 +675,73 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (editModal) editModal.classList.remove('hidden');
+    }
+
+    function renderEditDateTags() {
+        const container = document.getElementById('edit-selected-dates-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const editDatePicker = document.getElementById('edit-task-date-picker');
+
+        if (editSelectedDates.length === 0) {
+            const todayStr = getLocalDateISO();
+            editSelectedDates = [todayStr];
+            editActiveDateIndex = 0;
+            if (editDatePicker) editDatePicker.value = todayStr;
+        }
+
+        if (editActiveDateIndex < 0 || editActiveDateIndex >= editSelectedDates.length) {
+            editActiveDateIndex = Math.max(0, editSelectedDates.length - 1);
+        }
+
+        editSelectedDates.forEach((d, idx) => {
+            const tag = document.createElement('span');
+            const isActive = (idx === editActiveDateIndex);
+            tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
+            tag.innerHTML = `📅 ${d} <button type="button" class="edit-remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">❌</button>`;
+
+            tag.addEventListener('click', (e) => {
+                if (e.target.classList.contains('edit-remove-date-tag')) return;
+                editActiveDateIndex = idx;
+                if (editDatePicker) editDatePicker.value = editSelectedDates[idx];
+                renderEditDateTags();
+            });
+
+            container.appendChild(tag);
+        });
+
+        container.querySelectorAll('.edit-remove-date-tag').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idxToRemove = parseInt(e.currentTarget.dataset.index);
+                editSelectedDates.splice(idxToRemove, 1);
+
+                if (editSelectedDates.length === 0) {
+                    const fallback = getLocalDateISO();
+                    editSelectedDates = [fallback];
+                    editActiveDateIndex = 0;
+                    if (editDatePicker) editDatePicker.value = fallback;
+                } else {
+                    editActiveDateIndex = Math.min(editActiveDateIndex, editSelectedDates.length - 1);
+                    if (editDatePicker) editDatePicker.value = editSelectedDates[editActiveDateIndex];
+                }
+                renderEditDateTags();
+            });
+        });
+    }
+
+    const editAddDateBtn = document.getElementById('edit-add-date-btn');
+    if (editAddDateBtn) {
+        editAddDateBtn.addEventListener('click', () => {
+            const editDatePicker = document.getElementById('edit-task-date-picker');
+            const curVal = editDatePicker ? editDatePicker.value : getLocalDateISO();
+            if (!editSelectedDates.includes(curVal)) {
+                editSelectedDates.push(curVal);
+                editActiveDateIndex = editSelectedDates.length - 1;
+            }
+            renderEditDateTags();
+        });
     }
 
     function renderEditTimeTags() {
@@ -759,6 +916,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 days.push(parseInt(chip.dataset.day));
             });
 
+            const editTask = tasks.find(t => t.task_id === parseInt(taskId));
+            let one_time_date = undefined;
+            if (editTask && editTask.is_one_time) {
+                one_time_date = editSelectedDates.length > 0 ? editSelectedDates.join(', ') : (document.getElementById('edit-task-date-picker')?.value || getLocalDateISO());
+            }
+
             try {
                 await apiRequest(`/api/tasks/${taskId}`, {
                     method: 'PUT',
@@ -766,6 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         description,
                         times,
                         interval_minutes,
+                        one_time_date,
                         days: days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6]
                     })
                 });
@@ -869,7 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let one_time_date = null;
 
             if (isOneTime) {
-                one_time_date = datePicker ? datePicker.value : getLocalDateISO();
+                one_time_date = selectedDates.length > 0 ? selectedDates.join(', ') : (datePicker ? datePicker.value : getLocalDateISO());
                 days = [0];
             } else {
                 dayChips.forEach(chip => {
@@ -896,6 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('🎉 Нагадування успішно створено!');
                 createForm.reset();
                 
+                selectedDates = [getLocalDateISO()];
+                renderDateTags();
+
                 const now = new Date();
                 const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                 selectedTimes = [curTime];
