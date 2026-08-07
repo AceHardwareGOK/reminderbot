@@ -71,6 +71,22 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
         times = task.get('times', [])
         is_one_time = task.get('is_one_time', False)
         one_time_date = task.get('one_time_date', '')
+
+        is_future_task = False
+        if is_one_time and one_time_date:
+            dates = [d.strip()[:10] for d in str(one_time_date).split(',') if d.strip()]
+            norm_dates = []
+            for d in dates:
+                if '.' in d:
+                    parts = d.split('.')
+                    if len(parts) == 3:
+                        norm_dates.append(f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}")
+                    else:
+                        norm_dates.append(d)
+                else:
+                    norm_dates.append(d)
+            if norm_dates and min(norm_dates) > today_str:
+                is_future_task = True
         
         statuses = []
         next_found = False
@@ -90,6 +106,12 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
             
             if is_comp:
                 statuses.append({"time": t_str, "status": "completed", "label": "Виконано"})
+            elif is_future_task:
+                if not next_found:
+                    statuses.append({"time": t_str, "status": "next", "label": "Наступне"})
+                    next_found = True
+                else:
+                    statuses.append({"time": t_str, "status": "upcoming", "label": "Очікується"})
             elif t_str > now_hm:
                 if not next_found:
                     statuses.append({"time": t_str, "status": "next", "label": "Наступне"})
@@ -99,7 +121,7 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
             else:
                 statuses.append({"time": t_str, "status": "past", "label": "Пропущено"})
 
-        if not next_found:
+        if not next_found and not is_future_task:
             past_indices = [i for i, s in enumerate(statuses) if s["status"] == "past"]
             if past_indices:
                 statuses[past_indices[-1]]["status"] = "next"

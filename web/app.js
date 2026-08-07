@@ -612,7 +612,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const nowHM = new Date().toTimeString().substring(0, 5);
-            const isDue = task.time_statuses && task.time_statuses.some(st => st.status === 'past' || st.status === 'completed' || (st.status === 'next' && st.time <= nowHM));
+            let isFutureTask = false;
+            if (task.is_one_time && task.one_time_date) {
+                const todayStr = getLocalDateISO();
+                const dates = String(task.one_time_date).split(',').map(d => d.trim().substring(0, 10));
+                if (dates.length > 0 && dates.every(d => d > todayStr)) {
+                    isFutureTask = true;
+                }
+            }
+
+            const isDue = !isFutureTask && task.time_statuses && task.time_statuses.some(st => st.status === 'past' || st.status === 'completed' || (st.status === 'next' && st.time <= nowHM));
             const snoozeBtnLabel = isDue ? '🔁 Повторити' : '⏸ Відкласти';
 
             let timeSlotsHtml = '';
