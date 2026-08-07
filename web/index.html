@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="app.css?v=1.0.5">
+    <link rel="stylesheet" href="app.css?v=1.0.7">
 </head>
 <body>
     <div id="app">
@@ -23,8 +23,9 @@
                 </div>
             </div>
             <div class="header-actions">
-                <button id="snooze-all-btn" class="icon-btn" title="Відкласти всі">⏸</button>
-                <button id="refresh-btn" class="icon-btn" title="Оновити">🔄</button>
+                <button id="theme-toggle-btn" class="icon-btn" title="Змінити тему" aria-label="Змінити тему">🌙</button>
+                <button id="snooze-all-btn" class="icon-btn" title="Відкласти всі" aria-label="Відкласти всі нагадування">⏸</button>
+                <button id="refresh-btn" class="icon-btn" title="Оновити" aria-label="Оновити список завдань">🔄</button>
             </div>
         </header>
 
@@ -59,9 +60,9 @@
             <section id="tab-calendar" class="tab-pane">
                 <div class="calendar-card">
                     <div class="calendar-header">
-                        <button id="cal-prev" class="icon-btn">◀️</button>
+                        <button id="cal-prev" class="icon-btn" aria-label="Попередній місяць">◀️</button>
                         <h3 id="cal-month-title">Серпень 2026</h3>
-                        <button id="cal-next" class="icon-btn">▶️</button>
+                        <button id="cal-next" class="icon-btn" aria-label="Наступний місяць">▶️</button>
                     </div>
                     <div class="calendar-grid-header">
                         <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span>
@@ -77,14 +78,14 @@
         </main>
 
         <!-- Плаваюча кнопка створення (FAB) -->
-        <button id="fab-add-btn" class="fab-btn">➕</button>
+        <button id="fab-add-btn" class="fab-btn" aria-label="Створити нове нагадування">➕</button>
 
         <!-- Модальне вікно створення -->
         <div id="create-modal" class="modal-backdrop hidden">
             <div class="modal-window">
                 <div class="modal-header">
                     <h3>Нове нагадування</h3>
-                    <button id="close-modal-btn" class="icon-btn">❌</button>
+                    <button id="close-modal-btn" class="icon-btn" aria-label="Закрити модальне вікно">❌</button>
                 </div>
                 <form id="create-task-form" class="card-form">
                     <div class="form-group">
@@ -173,7 +174,7 @@
             <div class="modal-window">
                 <div class="modal-header">
                     <h3>✏️ Редагування завдання</h3>
-                    <button id="close-edit-modal-btn" class="icon-btn">❌</button>
+                    <button id="close-edit-modal-btn" class="icon-btn" aria-label="Закрити вікно редагування">❌</button>
                 </div>
                 <form id="edit-task-form" class="card-form">
                     <input type="hidden" id="edit-task-id">
@@ -234,7 +235,7 @@
             <div class="modal-window">
                 <div class="modal-header">
                     <h3 id="snooze-modal-title">⏸ Відкласти нагадування</h3>
-                    <button id="close-snooze-modal-btn" class="icon-btn">❌</button>
+                    <button id="close-snooze-modal-btn" class="icon-btn" aria-label="Закрити вікно відкладення">❌</button>
                 </div>
                 <div class="snooze-options-grid">
                     <button class="snooze-opt-btn" data-minutes="15">⏱ 15 хвилин</button>
@@ -263,6 +264,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.5"></script>
+    <script src="app.js?v=1.0.7"></script>
 </body>
 </html>

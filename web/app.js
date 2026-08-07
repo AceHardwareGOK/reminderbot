@@ -5,6 +5,55 @@ document.addEventListener('DOMContentLoaded', () => {
         tg.expand();
     }
 
+    // --- Theme Engine Logic ---
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    
+    function getPreferredTheme() {
+        const savedTheme = localStorage.getItem('app_theme');
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+            return savedTheme;
+        }
+        if (tg?.colorScheme === 'light' || tg?.colorScheme === 'dark') {
+            return tg.colorScheme;
+        }
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            return 'light';
+        }
+        return 'dark';
+    }
+
+    function applyTheme(theme, save = false) {
+        document.documentElement.setAttribute('data-theme', theme);
+        if (themeToggleBtn) {
+            themeToggleBtn.textContent = theme === 'light' ? '☀️' : '🌙';
+            themeToggleBtn.setAttribute('title', theme === 'light' ? 'Світла тема' : 'Темна тема');
+        }
+        if (save) {
+            localStorage.setItem('app_theme', theme);
+        }
+    }
+
+    let currentTheme = getPreferredTheme();
+    applyTheme(currentTheme);
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(currentTheme, true);
+            showToast(currentTheme === 'light' ? '☀️ Увімкнено світлу тему' : '🌙 Увімкнено темну тему');
+        });
+    }
+
+    if (tg) {
+        tg.onEvent('themeChanged', () => {
+            if (!localStorage.getItem('app_theme') && tg.colorScheme) {
+                currentTheme = tg.colorScheme;
+                applyTheme(currentTheme);
+            }
+        });
+    }
+    // --------------------------
+
     const initData = tg?.initData || '';
     
     let tasks = [];

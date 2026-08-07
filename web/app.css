@@ -12,6 +12,121 @@
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* Theme Engine Overrides */
+[data-theme="light"] {
+    --bg-color: #f0f2f7;
+    --text-color: #1a1d20;
+    --secondary-bg: #ffffff;
+    --hint-color: #657385;
+    --button-color: #2b73d2;
+    --button-text-color: #ffffff;
+    --accent-color: #1967d2;
+    --danger-color: #e53935;
+    --success-color: #2e7d32;
+    color-scheme: light;
+}
+
+[data-theme="dark"] {
+    --bg-color: #17212b;
+    --text-color: #f5f5f5;
+    --secondary-bg: #232e3c;
+    --hint-color: #708499;
+    --button-color: #5288c1;
+    --button-text-color: #ffffff;
+    --accent-color: #64b5f6;
+    --danger-color: #ff6b6b;
+    --success-color: #51cf66;
+    color-scheme: dark;
+}
+
+/* Light Theme Component Polish */
+[data-theme="light"] .app-header,
+[data-theme="light"] .task-card,
+[data-theme="light"] .calendar-card,
+[data-theme="light"] .calendar-day-details,
+[data-theme="light"] .modal-window,
+[data-theme="light"] .bottom-nav {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .progress-card {
+    background: linear-gradient(135deg, rgba(43, 115, 210, 0.12) 0%, rgba(25, 103, 210, 0.05) 100%);
+    border-color: rgba(43, 115, 210, 0.2);
+}
+
+[data-theme="light"] .progress-bar-track {
+    background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .filter-chip {
+    border-color: rgba(0, 0, 0, 0.1);
+    background: #ffffff;
+    color: var(--hint-color);
+}
+
+[data-theme="light"] .custom-picker,
+[data-theme="light"] .form-group input[type="text"],
+[data-theme="light"] .form-group input[type="number"],
+[data-theme="light"] .radio-btn,
+[data-theme="light"] .preset-chip,
+[data-theme="light"] .time-preset-chip,
+[data-theme="light"] .edit-time-preset-chip,
+[data-theme="light"] .day-chip,
+[data-theme="light"] .interval-chip,
+[data-theme="light"] .cal-day,
+[data-theme="light"] .snooze-opt-btn {
+    background: #f8f9fa;
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #1a1d20;
+}
+
+[data-theme="light"] .cal-day.empty {
+    background: transparent;
+}
+
+[data-theme="light"] .time-slot-chip.upcoming {
+    background: rgba(0, 0, 0, 0.05);
+    color: #2b3036;
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .time-slot-chip.next {
+    background: linear-gradient(135deg, rgba(43, 115, 210, 0.2) 0%, rgba(25, 103, 210, 0.1) 100%);
+    color: #1967d2;
+    border-color: #2b73d2;
+}
+
+[data-theme="light"] .time-slot-chip.completed {
+    background: rgba(46, 125, 50, 0.12);
+    color: #2e7d32;
+    border-color: rgba(46, 125, 50, 0.25);
+}
+
+[data-theme="light"] .time-slot-chip.past {
+    background: rgba(230, 81, 0, 0.12);
+    color: #e65100;
+    border-color: rgba(230, 81, 0, 0.25);
+}
+
+[data-theme="light"] .btn-secondary {
+    background: rgba(0, 0, 0, 0.06);
+    color: #2b3036;
+}
+
+[data-theme="light"] .task-badge {
+    background: rgba(0, 0, 0, 0.05);
+    color: #505c6d;
+}
+
+#theme-toggle-btn {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
+}
+
+#theme-toggle-btn:active {
+    transform: rotate(180deg) scale(0.85);
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -139,11 +254,24 @@ body {
     padding: 6px;
     border-radius: 8px;
     transition: transform 0.2s, background 0.2s;
+    user-select: none;
 }
 
 .icon-btn:active {
     transform: scale(0.92);
     background: rgba(255, 255, 255, 0.08);
+}
+
+.icon-btn:focus-visible,
+.fab-btn:focus-visible,
+.filter-chip:focus-visible,
+.btn-small:focus-visible,
+.preset-chip:focus-visible,
+.day-chip:focus-visible,
+.interval-chip:focus-visible,
+.snooze-opt-btn:focus-visible {
+    outline: 2px solid var(--button-color);
+    outline-offset: 2px;
 }
 
 /* Progress Card */
