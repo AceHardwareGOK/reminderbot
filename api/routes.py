@@ -47,7 +47,7 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
     today_date = now.date()
     today_str = now.strftime('%Y-%m-%d')
     
-    completed_today_count = 0
+    snoozed_map = {}
     async with db_manager._get_connection() as conn:
         cursor = await conn.execute('''
             SELECT completed_at, reminder_instance_id
@@ -64,6 +64,19 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
                 seen_insts.add(r['reminder_instance_id'])
         completed_today_count = len(seen_insts)
 
+        cursor_s = await conn.execute('''
+            SELECT task_id, snoozed_until
+            FROM snoozed_reminders 
+            WHERE user_id = ?
+        ''', (user_id,))
+        s_rows = await cursor_s.fetchall()
+        for sr in s_rows:
+            sn_dt = db_manager._parse_date(sr['snoozed_until'])
+            if sn_dt and sn_dt > now:
+                t_id = sr['task_id']
+                if t_id not in snoozed_map or sn_dt > snoozed_map[t_id]:
+                    snoozed_map[t_id] = sn_dt
+
     now_hm = now.strftime('%H:%M')
 
     for task in tasks:
@@ -71,6 +84,20 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
         times = task.get('times', [])
         is_one_time = task.get('is_one_time', False)
         one_time_date = task.get('one_time_date', '')
+
+        if task_id in snoozed_map:
+            sn_dt = snoozed_map[task_id]
+            mins_left = max(1, int((sn_dt - now).total_seconds() / 60))
+            sn_time_str = sn_dt.strftime('%H:%M')
+            task['is_snoozed'] = True
+            task['snooze_time'] = sn_time_str
+            task['snooze_minutes_left'] = mins_left
+            task['snooze_display'] = f"{sn_time_str} (через {mins_left} хв)"
+        else:
+            task['is_snoozed'] = False
+            task['snooze_time'] = None
+            task['snooze_minutes_left'] = None
+            task['snooze_display'] = None
 
         is_future_task = False
         if is_one_time and one_time_date:

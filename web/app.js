@@ -639,8 +639,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${icon} ${st.time} <span class="time-slot-label">(${st.label})</span>
                     </span>`;
                 }).join('');
-            } else {
-                timeSlotsHtml = (task.times || []).map(t => `<span class="time-slot-chip upcoming">🕒 ${t}</span>`).join('');
+            let snoozeBadgeHtml = '';
+            if (task.is_snoozed && task.snooze_display) {
+                snoozeBadgeHtml = `
+                    <div class="snooze-info-badge">
+                        <span class="snooze-badge-icon">⏰</span>
+                        <span class="snooze-badge-text">Наступний запуск: <strong>${escapeHtml(task.snooze_display)}</strong></span>
+                    </div>
+                `;
             }
 
             card.innerHTML = `
@@ -653,6 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="time-slots-title">🕒 Час:</span>
                         ${timeSlotsHtml}
                     </div>
+                    ${snoozeBadgeHtml}
                     <div class="task-detail-item">📅 ${daysText}</div>
                     ${task.interval_minutes > 0 ? `<div class="task-detail-item">🔄 кожні ${task.interval_minutes} хв</div>` : ''}
                 </div>

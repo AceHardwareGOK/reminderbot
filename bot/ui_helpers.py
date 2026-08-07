@@ -246,6 +246,11 @@ def format_task_card(task: Dict, title: str = "📝 *Завдання*") -> str:
         interval_str = escape_md("без повторень")
     else:
         interval_str = escape_md(f"кожні {interval} хв")
+
+    snooze_info_str = ""
+    if task.get('is_snoozed') and task.get('snooze_display'):
+        sn_disp = escape_md(task['snooze_display'])
+        snooze_info_str = f"\n⏰ *Наступний запуск:* `{sn_disp}`"
         
     card = (
         f"{title}\n"
@@ -254,6 +259,7 @@ def format_task_card(task: Dict, title: str = "📝 *Завдання*") -> str:
         f"📅 *Розклад:* {days_str}\n"
         f"⏰ *Час:* `{times_str}`\n"
         f"⏱️ *Інтервал:* `{interval_str}`"
+        f"{snooze_info_str}"
     )
     return card
 
