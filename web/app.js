@@ -154,57 +154,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadTasks);
 
-    // Зміна значення у Time Picker відразу оновлює первинний час
+    // Зміна значення у Time Picker відразу додає новий час
     if (timePicker) {
         timePicker.addEventListener('change', (e) => {
             const val = e.target.value;
-            if (val) {
-                if (selectedTimes.length <= 1) {
-                    selectedTimes = [val];
-                } else {
-                    if (!selectedTimes.includes(val)) {
-                        selectedTimes.push(val);
-                    }
-                }
+            if (val && !selectedTimes.includes(val)) {
+                selectedTimes.push(val);
+                selectedTimes.sort();
                 renderTimeTags();
             }
         });
     }
-
-    // Завантаження завдань
-
-    async function loadTasks() {
-        const container = document.getElementById('tasks-container');
-        const subtitle = document.getElementById('stats-subtitle');
-        if (container) container.innerHTML = '<div class="loading-spinner">Завантаження нагадувань...</div>';
-
-        try {
-            const data = await apiRequest('/api/tasks');
-            tasks = data.tasks || [];
-            updateStats(data);
-            renderTaskList();
-            renderCalendar();
-        } catch (err) {
-            if (container) {
-                container.innerHTML = `<div class="loading-spinner" style="color: var(--danger-color); padding: 20px;">⚠️ Помилка з'єднання: ${escapeHtml(err.message)}</div>`;
-            }
-            if (subtitle) subtitle.textContent = 'Помилка мережі';
-        }
-    }
-
-    function updateStats(data = {}) {
-        const totalActive = tasks.length;
-        const subtitle = document.getElementById('stats-subtitle');
-        if (subtitle) subtitle.textContent = `${totalActive} активних нагадувань`;
-
-        const percent = data.progress_percent !== undefined ? data.progress_percent : 0;
-
-        const percentEl = document.getElementById('progress-percent');
-        const fillEl = document.getElementById('progress-bar-fill');
-        if (percentEl) percentEl.textContent = `${percent}%`;
-        if (fillEl) fillEl.style.width = `${percent}%`;
-    }
-
 
     // Рендеринг тегів часів (Створення)
     function renderTimeTags() {
@@ -212,11 +172,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
         container.innerHTML = '';
 
+        selectedTimes.sort();
+
         selectedTimes.forEach(t => {
             const tag = document.createElement('span');
             tag.className = 'tag-item';
             tag.innerHTML = `🕒 ${t} <span class="remove-tag" data-time="${t}">❌</span>`;
             container.appendChild(tag);
+        });
+
+        // Підсвічуємо активні чіпи
+        document.querySelectorAll('.time-preset-chip').forEach(chip => {
+            const t = chip.dataset.time;
+            chip.classList.toggle('active', selectedTimes.includes(t));
         });
 
         container.querySelectorAll('.remove-tag').forEach(btn => {
@@ -248,9 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
         chip.addEventListener('click', (e) => {
             const t = e.currentTarget.dataset.time;
             if (t) {
-                if (selectedTimes.length === 1 && timePicker && selectedTimes[0] === timePicker.value && timePicker.value !== t) {
-                    selectedTimes = [t];
-                } else if (!selectedTimes.includes(t)) {
+                if (selectedTimes.includes(t)) {
+                    if (selectedTimes.length > 1) {
+                        selectedTimes = selectedTimes.filter(item => item !== t);
+                    }
+                } else {
                     selectedTimes.push(t);
                     selectedTimes.sort();
                 }
@@ -259,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
 
     // Швидкі пресети дати
     document.getElementById('preset-today')?.addEventListener('click', () => {
@@ -417,6 +388,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
         container.innerHTML = '';
 
+        editSelectedTimes.sort();
+
         editSelectedTimes.forEach(t => {
             const tag = document.createElement('span');
             tag.className = 'tag-item';
@@ -424,10 +397,20 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(tag);
         });
 
+        // Підсвічуємо активні чіпи в модалці редагування
+        document.querySelectorAll('.edit-time-preset-chip').forEach(chip => {
+            const t = chip.dataset.time;
+            chip.classList.toggle('active', editSelectedTimes.includes(t));
+        });
+
         container.querySelectorAll('.edit-remove-tag').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const timeToRemove = e.currentTarget.dataset.time;
                 editSelectedTimes = editSelectedTimes.filter(t => t !== timeToRemove);
+                if (editSelectedTimes.length === 0) {
+                    const picker = document.getElementById('edit-task-time-picker');
+                    editSelectedTimes = [picker ? picker.value || '09:00' : '09:00'];
+                }
                 renderEditTimeTags();
             });
         });
@@ -445,6 +428,37 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    const editTimePicker = document.getElementById('edit-task-time-picker');
+    if (editTimePicker) {
+        editTimePicker.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val && !editSelectedTimes.includes(val)) {
+                editSelectedTimes.push(val);
+                editSelectedTimes.sort();
+                renderEditTimeTags();
+            }
+        });
+    }
+
+    document.querySelectorAll('.edit-time-preset-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            const t = e.currentTarget.dataset.time;
+            if (t) {
+                if (editSelectedTimes.includes(t)) {
+                    if (editSelectedTimes.length > 1) {
+                        editSelectedTimes = editSelectedTimes.filter(item => item !== t);
+                    }
+                } else {
+                    editSelectedTimes.push(t);
+                    editSelectedTimes.sort();
+                }
+                if (editTimePicker) editTimePicker.value = t;
+                renderEditTimeTags();
+            }
+        });
+    });
+
 
     document.querySelectorAll('.edit-interval-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {

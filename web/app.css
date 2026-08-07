@@ -646,6 +646,68 @@ body {
     border-color: var(--button-color);
 }
 
+/* Quick Preset Chips for Time and Date */
+.quick-preset-chips, .days-chips, .interval-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.preset-chip, .time-preset-chip, .edit-time-preset-chip, .day-chip, .interval-chip {
+    background: var(--secondary-bg);
+    color: var(--text-color);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.preset-chip:active, .time-preset-chip:active, .edit-time-preset-chip:active, .day-chip:active, .interval-chip:active {
+    transform: scale(0.96);
+}
+
+.preset-chip.active, .time-preset-chip.active, .edit-time-preset-chip.active, .day-chip.active, .interval-chip.active {
+    background: var(--button-color);
+    color: var(--button-text-color);
+    border-color: var(--button-color);
+    box-shadow: 0 2px 8px rgba(82, 136, 193, 0.4);
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.tag-item {
+    background: rgba(82, 136, 193, 0.2);
+    color: var(--button-color);
+    border: 1px solid rgba(82, 136, 193, 0.4);
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tag-item .remove-tag, .tag-item .edit-remove-tag {
+    cursor: pointer;
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.tag-item .remove-tag:hover, .tag-item .edit-remove-tag:hover {
+    opacity: 1;
+}
+
 .submit-btn {
     background: var(--button-color);
     color: var(--button-text-color);
@@ -657,6 +719,7 @@ body {
     cursor: pointer;
     margin-top: 8px;
 }
+
 
 /* Snooze Modal Grid */
 .snooze-options-grid {
