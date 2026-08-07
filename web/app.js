@@ -400,8 +400,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="task-actions">
                     <button class="btn-small btn-success complete-btn" data-id="${task.task_id}">✅ Готово</button>
-                    <button class="btn-small btn-primary snooze-btn" data-id="${task.task_id}">⏸ Відкласти</button>
                     <button class="btn-small btn-secondary edit-btn" data-id="${task.task_id}">✏️ Редагувати</button>
+                    <button class="btn-small btn-primary snooze-btn" data-id="${task.task_id}">⏸ Відкласти</button>
                     <button class="btn-small btn-danger delete-btn" data-id="${task.task_id}">🗑 Видалити</button>
                 </div>
             `;

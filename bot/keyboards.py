@@ -31,20 +31,14 @@ def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int)
     """Build interactive dashboard keyboard with pagination and action buttons."""
     buttons = []
     
-    # Quick Actions Row
-    quick_actions = [
+    # All 4 actions in 1 single row: Готово, Редагувати, Відкласти, Видалити
+    actions_row = [
         InlineKeyboardButton("✅ Готово", callback_data=f"dashdone_{task_id}", api_kwargs={'style': 'success'}),
-        InlineKeyboardButton("⏸ Відкласти", callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'})
-    ]
-    
-    # Manage Actions Row
-    manage_actions = [
-        InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task_id}"),
+        InlineKeyboardButton("✏️ Ред.", callback_data=f"edit_{task_id}"),
+        InlineKeyboardButton("⏸ Відкласти", callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task_id}", api_kwargs={'style': 'danger'})
     ]
-    
-    buttons.append(quick_actions)
-    buttons.append(manage_actions)
+    buttons.append(actions_row)
     
     # Pagination Row (only if total_count > 1)
     if total_count > 1:
