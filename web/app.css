@@ -658,10 +658,24 @@ body {
     width: 100%;
 }
 
-.time-picker-row, .date-picker-row {
+.time-picker-row, .date-picker-row, .interval-picker-row {
+    position: relative;
     display: flex;
     gap: 8px;
     align-items: center;
+}
+
+.interval-picker-row input {
+    padding-right: 42px;
+}
+
+.interval-picker-row .input-unit {
+    position: absolute;
+    right: 14px;
+    color: var(--hint-color);
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
 }
 
 .quick-preset-chips {

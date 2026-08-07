@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="app.css?v=1.0.13">
+    <link rel="stylesheet" href="app.css?v=1.0.14">
 </head>
 <body>
     <div id="app">
@@ -169,15 +169,19 @@
                         <div id="selected-times-container" class="tags-container"></div>
                     </div>
 
-                    <!-- Графічний вибір інтервалу повтору -->
+                    <!-- Вибір інтервалу повтору (Інпут + Швидкі чіпи-пресети) -->
                     <div class="form-group">
-                        <label>Повторювати кожні N хвилин</label>
-                        <div class="interval-chips">
+                        <label for="task-interval-input">Повторювати кожні N хвилин (0 — без повтору)</label>
+                        <div class="interval-picker-row">
+                            <input type="number" id="task-interval-input" min="0" max="1440" placeholder="0 (Без повтору)" class="custom-picker">
+                            <span class="input-unit">хв</span>
+                        </div>
+                        <div class="quick-preset-chips interval-preset-chips">
                             <button type="button" class="interval-chip active" data-minutes="0">Без повтору</button>
                             <button type="button" class="interval-chip" data-minutes="15">15 хв</button>
                             <button type="button" class="interval-chip" data-minutes="30">30 хв</button>
                             <button type="button" class="interval-chip" data-minutes="60">1 год</button>
-                            <button type="button" class="interval-chip" id="custom-interval-chip" data-minutes="custom">✏️ Власний</button>
+                            <button type="button" class="interval-chip" data-minutes="120">2 год</button>
                         </div>
                     </div>
 
@@ -220,13 +224,17 @@
 
 
                     <div class="form-group">
-                        <label>Повторювати кожні N хвилин</label>
-                        <div class="interval-chips" id="edit-interval-chips">
-                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="0">Без повтору</button>
+                        <label for="edit-task-interval-input">Повторювати кожні N хвилин (0 — без повтору)</label>
+                        <div class="interval-picker-row">
+                            <input type="number" id="edit-task-interval-input" min="0" max="1440" placeholder="0 (Без повтору)" class="custom-picker">
+                            <span class="input-unit">хв</span>
+                        </div>
+                        <div class="quick-preset-chips interval-preset-chips">
+                            <button type="button" class="interval-chip edit-interval-chip active" data-minutes="0">Без повтору</button>
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="15">15 хв</button>
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="30">30 хв</button>
                             <button type="button" class="interval-chip edit-interval-chip" data-minutes="60">1 год</button>
-                            <button type="button" class="interval-chip edit-interval-chip" id="edit-custom-interval-chip" data-minutes="custom">✏️ Власний</button>
+                            <button type="button" class="interval-chip edit-interval-chip" data-minutes="120">2 год</button>
                         </div>
                     </div>
 
@@ -289,6 +297,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.13"></script>
+    <script src="app.js?v=1.0.14"></script>
 </body>
 </html>
