@@ -256,6 +256,27 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedInterval = parseInt(e.currentTarget.dataset.minutes) || 0;
         });
     });
+    // Завантаження завдань з API
+    async function loadTasks() {
+        try {
+            const data = await apiRequest('/api/tasks');
+            tasks = data.tasks || [];
+
+            // Оновити лічильник та прогрес
+            const countEl = document.getElementById('tasks-count');
+            if (countEl) countEl.textContent = `${tasks.length} активних нагадувань`;
+
+            const progressEl = document.getElementById('progress-percent');
+            if (progressEl) progressEl.textContent = `${data.progress_percent || 0}%`;
+
+            const progressBar = document.getElementById('progress-bar-fill');
+            if (progressBar) progressBar.style.width = `${data.progress_percent || 0}%`;
+
+            renderTaskList();
+        } catch (err) {
+            console.error('loadTasks error:', err);
+        }
+    }
 
     // Рендеринг завдань
     function renderTaskList() {
