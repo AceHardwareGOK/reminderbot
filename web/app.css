@@ -746,21 +746,25 @@ body {
 }
 
 .tag-item .remove-tag,
-.tag-item .edit-remove-tag {
+.tag-item .edit-remove-tag,
+.tag-item .remove-date-tag,
+.tag-item .edit-remove-date-tag {
     background: transparent;
     border: none;
     outline: none;
     color: inherit;
-    font-size: 11px;
+    font-size: 13px;
     cursor: pointer;
-    opacity: 0.7;
-    padding: 0 2px;
+    opacity: 0.75;
+    padding: 0 3px;
     line-height: 1;
     transition: opacity 0.15s ease;
 }
 
 .tag-item .remove-tag:hover,
-.tag-item .edit-remove-tag:hover {
+.tag-item .edit-remove-tag:hover,
+.tag-item .remove-date-tag:hover,
+.tag-item .edit-remove-date-tag:hover {
     opacity: 1;
 }
 

@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === activeDateIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `📅 ${d} <button type="button" class="remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">❌</button>`;
+            tag.innerHTML = `📅 ${d} <button type="button" class="remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">✕</button>`;
 
             tag.addEventListener('click', (e) => {
                 if (e.target.classList.contains('remove-date-tag')) return;
@@ -310,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === activeTimeIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `🕒 ${t} <button type="button" class="remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">❌</button>`;
+            tag.innerHTML = `🕒 ${t} <button type="button" class="remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">✕</button>`;
 
             // Тап на тіло тегу підключає колесо часу до нього
             tag.addEventListener('click', (e) => {
@@ -699,7 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === editActiveDateIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `📅 ${d} <button type="button" class="edit-remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">❌</button>`;
+            tag.innerHTML = `📅 ${d} <button type="button" class="edit-remove-date-tag" data-index="${idx}" aria-label="Видалити дату ${d}">✕</button>`;
 
             tag.addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-remove-date-tag')) return;
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === editActiveTimeIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `🕒 ${t} <button type="button" class="edit-remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">❌</button>`;
+            tag.innerHTML = `🕒 ${t} <button type="button" class="edit-remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">✕</button>`;
 
             tag.addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-remove-tag')) return;
