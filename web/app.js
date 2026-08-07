@@ -1157,7 +1157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = filtered.map(notif => {
-            const isUnread = !notif.is_read;
             const isCompleted = notif.is_completed || false;
             const timeStr = notif.created_at ? notif.created_at.replace('T', ' ').substring(0, 16) : '';
 
@@ -1166,17 +1165,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionsHtml = `<div class="notif-status-done">✅ Виконано</div>`;
             } else {
                 actionsHtml = `
-                    ${isUnread ? `<button class="btn-small btn-secondary mark-read-btn" data-id="${notif.id}">Позначити прочитаним</button>` : ''}
                     <button class="btn-small btn-success notif-done-btn" data-id="${notif.id}" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
                     <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">⏸ Відкласти</button>
                 `;
             }
 
             return `
-                <div class="notification-card ${isUnread ? 'unread' : ''} ${isCompleted ? 'completed-card' : ''}" data-id="${notif.id}">
+                <div class="notification-card ${isCompleted ? 'completed-card' : ''}" data-id="${notif.id}">
                     <div class="notif-header">
                         <div class="notif-title">
-                            ${isCompleted ? '✅' : (isUnread ? '🔵' : '⚪️')} ${escapeHtml(notif.title || 'Сповіщення')}
+                            ${isCompleted ? '✅' : '🔔'} ${escapeHtml(notif.title || 'Сповіщення')}
                         </div>
                         <span class="notif-time">${timeStr}</span>
                     </div>
@@ -1187,23 +1185,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
         }).join('');
-
-        // Attach listeners to dynamically created notification action buttons
-        container.querySelectorAll('.mark-read-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const id = btn.dataset.id;
-                try {
-                    const res = await apiRequest(`/api/notifications/${id}/read`, { method: 'POST' });
-                    if (res && res.status === 'ok') {
-                        updateUnreadBadge(res.unread_count || 0);
-                        loadNotifications();
-                    }
-                } catch (err) {
-                    console.error('Error marking read:', err);
-                }
-            });
-        });
 
         container.querySelectorAll('.notif-done-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -1249,20 +1230,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderNotificationsList();
         });
     });
-
-    // Actions in Notification header
-    const readAllNotifsBtn = document.getElementById('read-all-notifs-btn');
-    if (readAllNotifsBtn) {
-        readAllNotifsBtn.addEventListener('click', async () => {
-            try {
-                await apiRequest('/api/notifications/read_all', { method: 'POST' });
-                showToast('✅ Усі сповіщення позначено прочитаними');
-                loadNotifications();
-            } catch (err) {
-                console.error('Error reading all notifications:', err);
-            }
-        });
-    }
 
     const clearNotifsBtn = document.getElementById('clear-notifs-btn');
     if (clearNotifsBtn) {

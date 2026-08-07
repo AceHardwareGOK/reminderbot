@@ -389,6 +389,16 @@ async def snooze_task(
     for inst_id in set(inst_ids):
         await db_manager.set_reminder_snooze(user_id, task_id, inst_id, snoozed_until)
 
+    try:
+        async with db_manager._get_connection() as conn:
+            await conn.execute(
+                "UPDATE notifications_log SET is_read = 1 WHERE user_id = ? AND task_id = ?",
+                (user_id, task_id)
+            )
+            await conn.commit()
+    except Exception:
+        pass
+
     return {"status": "ok", "snoozed_until": snoozed_until.isoformat()}
 
 
@@ -475,10 +485,12 @@ async def get_notifications(
 
         item['is_completed'] = is_done
 
+    active_unread_count = sum(1 for item in items if not item.get('is_read') and not item.get('is_completed'))
+
     return {
         "status": "ok",
         "notifications": items,
-        "unread_count": unread_count
+        "unread_count": active_unread_count
     }
 
 @router.post("/notifications/{notification_id}/read")
