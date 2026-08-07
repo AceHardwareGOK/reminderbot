@@ -61,8 +61,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentCalDate = new Date();
     let selectedSnoozeTaskId = null;
 
+    function getLocalDateISO(d = new Date()) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function getPresetDate(type) {
+        const d = new Date();
+        if (type === 'tomorrow') {
+            d.setDate(d.getDate() + 1);
+        } else if (type === 'in3days') {
+            d.setDate(d.getDate() + 3);
+        }
+        return getLocalDateISO(d);
+    }
+
     // Стан обраних дат, часів та інтервалу для створення
-    let selectedDates = [];
+    let selectedDates = [getLocalDateISO()];
     let activeDateIndex = 0;
     let selectedTimes = ['09:00'];
     let activeTimeIndex = 0;
@@ -74,13 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let editSelectedTimes = [];
     let editActiveTimeIndex = 0;
     let editSelectedInterval = 0;
-
-    function getLocalDateISO(d = new Date()) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
 
     if (tg?.initDataUnsafe?.user) {
         const user = tg.initDataUnsafe.user;
@@ -165,11 +175,13 @@ document.addEventListener('DOMContentLoaded', () => {
             activeTimeIndex = 0;
             if (timePicker) timePicker.value = defaultTime;
             
-            if (datePicker && !datePicker.value) {
-                datePicker.value = getLocalDateISO(now);
-            }
+            const todayStr = getLocalDateISO(now);
+            selectedDates = [todayStr];
+            activeDateIndex = 0;
+            if (datePicker) datePicker.value = todayStr;
 
             renderTimeTags();
+            renderDateTags();
             if (createModal) createModal.classList.remove('hidden');
         });
     }
@@ -296,6 +308,30 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(tag);
         });
 
+        // Підсвічуємо активні пресети дати
+        const todayStr = getPresetDate('today');
+        const tomStr = getPresetDate('tomorrow');
+        const d3Str = getPresetDate('in3days');
+
+        const presetTodayEl = document.getElementById('preset-today');
+        if (presetTodayEl) {
+            const isAct = selectedDates.includes(todayStr);
+            presetTodayEl.classList.toggle('active', isAct);
+            presetTodayEl.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+        const presetTomEl = document.getElementById('preset-tomorrow');
+        if (presetTomEl) {
+            const isAct = selectedDates.includes(tomStr);
+            presetTomEl.classList.toggle('active', isAct);
+            presetTomEl.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+        const presetD3El = document.getElementById('preset-in3days');
+        if (presetD3El) {
+            const isAct = selectedDates.includes(d3Str);
+            presetD3El.classList.toggle('active', isAct);
+            presetD3El.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+
         container.querySelectorAll('.remove-date-tag').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -320,12 +356,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addDateBtn) {
         addDateBtn.addEventListener('click', () => {
             const curVal = datePicker ? datePicker.value : getLocalDateISO();
+            
+            let nextDate = curVal;
             if (selectedDates.includes(curVal)) {
-                showToast('⚠️ Цю дату вже додано!');
+                let d = new Date(curVal);
+                let guard = 0;
+                while (selectedDates.includes(nextDate) && guard < 365) {
+                    d.setDate(d.getDate() + 1);
+                    nextDate = getLocalDateISO(d);
+                    guard++;
+                }
+            }
+
+            if (selectedDates.includes(nextDate)) {
+                showToast('⚠️ Усі найближчі дати вже додано у списку!');
                 return;
             }
-            selectedDates.push(curVal);
+
+            selectedDates.push(nextDate);
             activeDateIndex = selectedDates.length - 1;
+            if (datePicker) datePicker.value = nextDate;
             renderDateTags();
         });
     }
@@ -444,21 +494,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // Швидкі пресети дати
+    // Швидкі пресети дати (Створення - логіка як у часів)
+    function applyDatePreset(presetDate) {
+        if (selectedDates.includes(presetDate)) {
+            if (selectedDates.length > 1) {
+                const idx = selectedDates.indexOf(presetDate);
+                selectedDates.splice(idx, 1);
+                activeDateIndex = Math.min(activeDateIndex, selectedDates.length - 1);
+                if (datePicker) datePicker.value = selectedDates[activeDateIndex];
+            }
+        } else {
+            if (selectedDates.length === 1 && activeDateIndex === 0) {
+                selectedDates[0] = presetDate;
+            } else {
+                selectedDates.push(presetDate);
+                activeDateIndex = selectedDates.length - 1;
+            }
+            if (datePicker) datePicker.value = presetDate;
+        }
+        renderDateTags();
+    }
+
     document.getElementById('preset-today')?.addEventListener('click', () => {
-        if (datePicker) datePicker.value = getLocalDateISO(new Date());
+        applyDatePreset(getPresetDate('today'));
     });
 
     document.getElementById('preset-tomorrow')?.addEventListener('click', () => {
-        const tom = new Date();
-        tom.setDate(tom.getDate() + 1);
-        if (datePicker) datePicker.value = getLocalDateISO(tom);
+        applyDatePreset(getPresetDate('tomorrow'));
     });
 
     document.getElementById('preset-in3days')?.addEventListener('click', () => {
-        const d3 = new Date();
-        d3.setDate(d3.getDate() + 3);
-        if (datePicker) datePicker.value = getLocalDateISO(d3);
+        applyDatePreset(getPresetDate('in3days'));
     });
 
     // Інпут та швидкі чіпи інтервалу (Створення)
@@ -750,6 +816,30 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(tag);
         });
 
+        // Підсвічуємо активні пресети дати в редагуванні
+        const todayStr = getPresetDate('today');
+        const tomStr = getPresetDate('tomorrow');
+        const d3Str = getPresetDate('in3days');
+
+        const editPresetTodayEl = document.getElementById('edit-preset-today');
+        if (editPresetTodayEl) {
+            const isAct = editSelectedDates.includes(todayStr);
+            editPresetTodayEl.classList.toggle('active', isAct);
+            editPresetTodayEl.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+        const editPresetTomEl = document.getElementById('edit-preset-tomorrow');
+        if (editPresetTomEl) {
+            const isAct = editSelectedDates.includes(tomStr);
+            editPresetTomEl.classList.toggle('active', isAct);
+            editPresetTomEl.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+        const editPresetD3El = document.getElementById('edit-preset-in3days');
+        if (editPresetD3El) {
+            const isAct = editSelectedDates.includes(d3Str);
+            editPresetD3El.classList.toggle('active', isAct);
+            editPresetD3El.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+        }
+
         container.querySelectorAll('.edit-remove-date-tag').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -775,15 +865,62 @@ document.addEventListener('DOMContentLoaded', () => {
         editAddDateBtn.addEventListener('click', () => {
             const editDatePicker = document.getElementById('edit-task-date-picker');
             const curVal = editDatePicker ? editDatePicker.value : getLocalDateISO();
+            
+            let nextDate = curVal;
             if (editSelectedDates.includes(curVal)) {
-                showToast('⚠️ Цю дату вже додано!');
+                let d = new Date(curVal);
+                let guard = 0;
+                while (editSelectedDates.includes(nextDate) && guard < 365) {
+                    d.setDate(d.getDate() + 1);
+                    nextDate = getLocalDateISO(d);
+                    guard++;
+                }
+            }
+
+            if (editSelectedDates.includes(nextDate)) {
+                showToast('⚠️ Усі найближчі дати вже додано у списку!');
                 return;
             }
-            editSelectedDates.push(curVal);
+
+            editSelectedDates.push(nextDate);
             editActiveDateIndex = editSelectedDates.length - 1;
+            if (editDatePicker) editDatePicker.value = nextDate;
             renderEditDateTags();
         });
     }
+
+    function applyEditDatePreset(presetDate) {
+        const editDatePicker = document.getElementById('edit-task-date-picker');
+        if (editSelectedDates.includes(presetDate)) {
+            if (editSelectedDates.length > 1) {
+                const idx = editSelectedDates.indexOf(presetDate);
+                editSelectedDates.splice(idx, 1);
+                editActiveDateIndex = Math.min(editActiveDateIndex, editSelectedDates.length - 1);
+                if (editDatePicker) editDatePicker.value = editSelectedDates[editActiveDateIndex];
+            }
+        } else {
+            if (editSelectedDates.length === 1 && editActiveDateIndex === 0) {
+                editSelectedDates[0] = presetDate;
+            } else {
+                editSelectedDates.push(presetDate);
+                editActiveDateIndex = editSelectedDates.length - 1;
+            }
+            if (editDatePicker) editDatePicker.value = presetDate;
+        }
+        renderEditDateTags();
+    }
+
+    document.getElementById('edit-preset-today')?.addEventListener('click', () => {
+        applyEditDatePreset(getPresetDate('today'));
+    });
+
+    document.getElementById('edit-preset-tomorrow')?.addEventListener('click', () => {
+        applyEditDatePreset(getPresetDate('tomorrow'));
+    });
+
+    document.getElementById('edit-preset-in3days')?.addEventListener('click', () => {
+        applyEditDatePreset(getPresetDate('in3days'));
+    });
 
     const editDatePickerEl = document.getElementById('edit-task-date-picker');
     if (editDatePickerEl) {
@@ -1133,12 +1270,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 createForm.reset();
                 
                 selectedDates = [getLocalDateISO()];
+                activeDateIndex = 0;
+                if (datePicker) datePicker.value = getLocalDateISO();
                 renderDateTags();
 
-                const now = new Date();
-                const curTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                selectedTimes = [curTime];
-                if (timePicker) timePicker.value = curTime;
+                const defaultTime = '09:00';
+                selectedTimes = [defaultTime];
+                activeTimeIndex = 0;
+                if (timePicker) timePicker.value = defaultTime;
                 renderTimeTags();
                 
                 if (createModal) createModal.classList.add('hidden');
@@ -1518,6 +1657,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    renderTimeTags();
+    renderDateTags();
     loadTasks();
     loadNotifications();
 });
