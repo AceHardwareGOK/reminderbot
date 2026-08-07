@@ -963,6 +963,7 @@ class BotHandlers:
         task_id: int,
         time_part: str,
         minutes: int,
+        is_repeat: bool = False,
     ) -> None:
         """Persist snooze for a single reminder instance across all key variations."""
         task = await self.db.get_task(task_id)
@@ -970,11 +971,46 @@ class BotHandlers:
             return
 
         now = datetime.now(TZ)
-        snoozed_until = now + timedelta(minutes=minutes)
-
         times = task.get("times", [])
         is_one_time = task.get("is_one_time", False)
         one_time_date = task.get("one_time_date", "")
+        interval_minutes = task.get("interval_minutes", 0)
+
+        # 1. Знаходимо base_dt від часу самого нагадування
+        base_date = now.date()
+        if is_one_time and one_time_date:
+            dates = [d.strip()[:10] for d in str(one_time_date).split(',') if d.strip()]
+            if dates:
+                try:
+                    base_date = datetime.strptime(dates[0], '%Y-%m-%d').date()
+                except Exception:
+                    pass
+
+        sorted_times = sorted(times) if times else ["09:00"]
+        now_hm = now.strftime('%H:%M')
+        target_time_str = sorted_times[0]
+        for t in sorted_times:
+            if t >= now_hm:
+                target_time_str = t
+                break
+
+        try:
+            h, m = map(int, target_time_str.split(':'))
+            base_dt = datetime(base_date.year, base_date.month, base_date.day, h, m, tzinfo=TZ)
+        except Exception:
+            base_dt = now
+
+        # 2. Повторення -> від now, Відкладання -> від base_dt
+        is_repeat_action = is_repeat or (interval_minutes == 0 and base_dt <= now)
+
+        if is_repeat_action:
+            snoozed_until = now + timedelta(minutes=minutes)
+        else:
+            snoozed_until = base_dt + timedelta(minutes=minutes)
+            if snoozed_until <= now:
+                snoozed_until = now + timedelta(minutes=minutes)
+
+        snooze_delay_minutes = max(1, int((snoozed_until - now).total_seconds() / 60))
 
         inst_ids = [f"{task_id}_{time_part}", f"{task_id}_snooze", f"inst_{task_id}"]
         for t in times:
@@ -996,7 +1032,7 @@ class BotHandlers:
 
         if self.reminder_manager:
             try:
-                self.reminder_manager.schedule_snooze_reminder(user_id, task, minutes)
+                self.reminder_manager.schedule_snooze_reminder(user_id, task, snooze_delay_minutes)
             except Exception as e:
                 logger.error(f"Error scheduling snooze in bot handler: {e}")
 

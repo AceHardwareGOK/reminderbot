@@ -401,6 +401,7 @@ async def complete_task_instance(
 
 class SnoozeRequest(BaseModel):
     minutes: int = Field(default=30, ge=1)
+    is_repeat: Optional[bool] = False
 
 
 @router.post("/tasks/{task_id}/snooze")
@@ -409,7 +410,7 @@ async def snooze_task(
     payload: SnoozeRequest,
     user_id: int = Depends(get_current_user)
 ):
-    """Відкласти конкретне завдання на N хвилин для всіх варіацій ключів"""
+    """Відкласти або повторити конкретне завдання на N хвилин"""
     task = await db_manager.get_task(task_id)
     if not task or task["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -419,11 +420,47 @@ async def snooze_task(
     from core.config import TIMEZONE
 
     now = datetime.now(ZoneInfo(TIMEZONE))
-    snoozed_until = now + timedelta(minutes=payload.minutes)
 
     times = task.get("times", [])
     is_one_time = task.get("is_one_time", False)
     one_time_date = task.get("one_time_date", "")
+    interval_minutes = task.get("interval_minutes", 0)
+
+    # 1. Знаходимо базовий час слоту (base_dt) від самого нагадування
+    base_date = now.date()
+    if is_one_time and one_time_date:
+        dates = [d.strip()[:10] for d in str(one_time_date).split(',') if d.strip()]
+        if dates:
+            try:
+                base_date = datetime.strptime(dates[0], '%Y-%m-%d').date()
+            except Exception:
+                pass
+
+    sorted_times = sorted(times) if times else ["09:00"]
+    now_hm = now.strftime('%H:%M')
+    target_time_str = sorted_times[0]
+    for t in sorted_times:
+        if t >= now_hm:
+            target_time_str = t
+            break
+
+    try:
+        h, m = map(int, target_time_str.split(':'))
+        base_dt = datetime(base_date.year, base_date.month, base_date.day, h, m, tzinfo=ZoneInfo(TIMEZONE))
+    except Exception:
+        base_dt = now
+
+    # 2. Якщо це повторення (is_repeat) - від моменту натискання (now), якщо відкладання - від часу нагадування (base_dt)
+    is_repeat_action = payload.is_repeat or (interval_minutes == 0 and base_dt <= now)
+
+    if is_repeat_action:
+        snoozed_until = now + timedelta(minutes=payload.minutes)
+    else:
+        snoozed_until = base_dt + timedelta(minutes=payload.minutes)
+        if snoozed_until <= now:
+            snoozed_until = now + timedelta(minutes=payload.minutes)
+
+    snooze_delay_minutes = max(1, int((snoozed_until - now).total_seconds() / 60))
 
     inst_ids = [f"{task_id}_snooze", f"inst_{task_id}"]
     for t in times:
@@ -440,7 +477,7 @@ async def snooze_task(
 
     if reminder_manager:
         try:
-            reminder_manager.schedule_snooze_reminder(user_id, task, payload.minutes)
+            reminder_manager.schedule_snooze_reminder(user_id, task, snooze_delay_minutes)
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Error scheduling snooze job for task {task_id}: {e}")

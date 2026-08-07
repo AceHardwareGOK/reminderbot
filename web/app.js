@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFilter = 'today';
     let currentCalDate = new Date();
     let selectedSnoozeTaskId = null;
+    let selectedSnoozeIsRepeat = false;
 
     function getLocalDateISO(d = new Date()) {
         const year = d.getFullYear();
@@ -727,6 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 selectedSnoozeTaskId = e.currentTarget.dataset.id;
                 const isDue = e.currentTarget.dataset.isDue === 'true';
+                selectedSnoozeIsRepeat = isDue;
                 const titleEl = document.getElementById('snooze-modal-title');
                 if (titleEl) titleEl.textContent = isDue ? '🔁 Повторити нагадування' : '⏸ Відкласти нагадування';
                 if (snoozeModal) snoozeModal.classList.remove('hidden');
@@ -1186,9 +1188,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedSnoozeTaskId) {
                 await apiRequest(`/api/tasks/${selectedSnoozeTaskId}/snooze`, {
                     method: 'POST',
-                    body: JSON.stringify({ minutes })
+                    body: JSON.stringify({ minutes, is_repeat: selectedSnoozeIsRepeat })
                 });
-                showToast(`⏸ Нагадування відкладено на ${minutes} хв`);
+                showToast(selectedSnoozeIsRepeat ? `🔁 Повтор нагадування заплановано через ${minutes} хв` : `⏸ Нагадування відкладено на ${minutes} хв`);
             } else {
                 await apiRequest('/api/snooze-all', {
                     method: 'POST',
@@ -1227,9 +1229,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedSnoozeTaskId) {
                 await apiRequest(`/api/tasks/${selectedSnoozeTaskId}/snooze`, {
                     method: 'POST',
-                    body: JSON.stringify({ minutes })
+                    body: JSON.stringify({ minutes, is_repeat: selectedSnoozeIsRepeat })
                 });
-                showToast(`⏱ Інтервал оновлено на ${minutes} хв`);
+                showToast(selectedSnoozeIsRepeat ? `🔁 Повтор нагадування заплановано через ${minutes} хв` : `⏱ Відкладення оновлено на ${minutes} хв`);
             } else {
                 await apiRequest('/api/snooze-all', {
                     method: 'POST',
