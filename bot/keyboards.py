@@ -31,14 +31,17 @@ def build_dashboard_keyboard(task_id: int, current_index: int, total_count: int)
     """Build interactive dashboard keyboard with pagination and action buttons."""
     buttons = []
     
-    # All 4 actions in 1 single row: Готово, Редагувати, Відкласти, Видалити
-    actions_row = [
+    # 2 rows of action buttons for Telegram chat to fit full labels without truncation:
+    row1 = [
         InlineKeyboardButton("✅ Готово", callback_data=f"dashdone_{task_id}", api_kwargs={'style': 'success'}),
-        InlineKeyboardButton("✏️ Ред.", callback_data=f"edit_{task_id}"),
+        InlineKeyboardButton("✏️ Редагувати", callback_data=f"edit_{task_id}")
+    ]
+    row2 = [
         InlineKeyboardButton("⏸ Відкласти", callback_data=f"dashsnooze_{task_id}", api_kwargs={'style': 'primary'}),
         InlineKeyboardButton("🗑 Видалити", callback_data=f"delete_{task_id}", api_kwargs={'style': 'danger'})
     ]
-    buttons.append(actions_row)
+    buttons.append(row1)
+    buttons.append(row2)
     
     # Pagination Row (only if total_count > 1)
     if total_count > 1:
