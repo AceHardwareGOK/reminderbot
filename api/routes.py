@@ -110,11 +110,23 @@ async def get_tasks(user_id: int = Depends(get_current_user)):
     today_index = now.weekday()
     today_active_count = 0
     for t in tasks:
-        if not t.get('is_one_time') and today_index in t.get('days', []):
+        days_list = t.get('days', [])
+        if not t.get('is_one_time') and (today_index in days_list or str(today_index) in map(str, days_list)):
             today_active_count += 1
         elif t.get('is_one_time') and t.get('one_time_date'):
-            if today_str in str(t.get('one_time_date', '')):
-                today_active_count += 1
+            ot_dates = str(t.get('one_time_date', '')).split(',')
+            for d in ot_dates:
+                d_clean = d.strip()[:10]
+                if d_clean == today_str:
+                    today_active_count += 1
+                    break
+                elif '.' in d_clean:
+                    parts = d_clean.split('.')
+                    if len(parts) == 3:
+                        formatted = f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                        if formatted == today_str:
+                            today_active_count += 1
+                            break
 
     total_today = completed_today_count + today_active_count
     progress_percent = int((completed_today_count / total_today * 100)) if total_today > 0 else (100 if completed_today_count > 0 else 0)

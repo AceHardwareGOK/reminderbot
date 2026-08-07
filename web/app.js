@@ -285,10 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '';
 
         const todayIndex = (new Date().getDay() === 0) ? 6 : new Date().getDay() - 1;
+        const todayDate = new Date();
 
         const filtered = tasks.filter(t => {
             if (currentFilter === 'today') {
-                return !t.is_one_time && t.days.includes(todayIndex);
+                return isTaskOnDate(t, todayDate, todayIndex);
             }
             if (currentFilter === 'daily') return !t.is_one_time;
             if (currentFilter === 'onetime') return t.is_one_time;
@@ -716,10 +717,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function isTaskOnDate(t, cellDate, dayOfWeek) {
-        if (!t.is_one_time && t.days.includes(dayOfWeek)) return true;
+        if (!t.is_one_time && t.days && (t.days.includes(dayOfWeek) || t.days.includes(String(dayOfWeek)) || t.days.includes(Number(dayOfWeek)))) return true;
         if (t.is_one_time && t.one_time_date) {
             const cellISO = getLocalDateISO(cellDate);
-            const dates = t.one_time_date.split(',').map(d => d.trim());
+            const dates = String(t.one_time_date).split(',').map(d => d.trim());
             return dates.some(d => {
                 const dClean = d.substring(0, 10);
                 if (dClean === cellISO) return true;
