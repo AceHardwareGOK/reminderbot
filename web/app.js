@@ -14,10 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Стан обраних часів та інтервалу для створення
     let selectedTimes = [];
+    let activePickerTime = '09:00';
     let selectedInterval = 0;
 
     // Стан для редагування
     let editSelectedTimes = [];
+    let editActivePickerTime = null;
     let editSelectedInterval = 0;
 
     function getLocalDateISO(d = new Date()) {
@@ -106,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (timePicker) timePicker.value = defaultTime;
             selectedTimes = [defaultTime];
+            activePickerTime = defaultTime;
             
             if (datePicker && !datePicker.value) {
                 datePicker.value = getLocalDateISO(now);
@@ -153,14 +156,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadTasks);
 
-    // Зміна значення у Time Picker оновлює текст на кнопці "➕ Додати"
+    // Зміна значення у Time Picker (ручний вибір перезаписує поточний activePickerTime)
     if (timePicker) {
-        timePicker.addEventListener('change', (e) => {
-            const val = e.target.value;
-            const addBtn = document.getElementById('add-time-btn');
-            if (addBtn && val) {
-                addBtn.textContent = `➕ Додати ${val}`;
-            }
+        ['input', 'change'].forEach(evt => {
+            timePicker.addEventListener(evt, (e) => {
+                const val = e.target.value;
+                if (!val) return;
+
+                const addBtn = document.getElementById('add-time-btn');
+                if (addBtn) addBtn.textContent = `➕ Додати ${val}`;
+
+                if (activePickerTime && selectedTimes.includes(activePickerTime)) {
+                    const idx = selectedTimes.indexOf(activePickerTime);
+                    selectedTimes[idx] = val;
+                } else {
+                    if (!selectedTimes.includes(val)) {
+                        selectedTimes.push(val);
+                    }
+                }
+
+                activePickerTime = val;
+                selectedTimes.sort();
+                renderTimeTags();
+            });
         });
     }
 
@@ -190,22 +208,31 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const timeToRemove = e.currentTarget.dataset.time;
                 selectedTimes = selectedTimes.filter(t => t !== timeToRemove);
+                if (activePickerTime === timeToRemove) {
+                    activePickerTime = selectedTimes[0] || null;
+                }
                 if (selectedTimes.length === 0 && timePicker) {
-                    selectedTimes = [timePicker.value || '09:00'];
+                    const fallback = timePicker.value || '09:00';
+                    selectedTimes = [fallback];
+                    activePickerTime = fallback;
                 }
                 renderTimeTags();
             });
         });
     }
 
-    // Додавання часу з Time Picker та Preset Chips
+    // Кнопка "Додати час" створює Новий слот
     const addTimeBtn = document.getElementById('add-time-btn');
     if (addTimeBtn) {
         addTimeBtn.addEventListener('click', () => {
             const val = timePicker ? timePicker.value : null;
-            if (val && !selectedTimes.includes(val)) {
-                selectedTimes.push(val);
-                selectedTimes.sort();
+            if (val) {
+                if (!selectedTimes.includes(val)) {
+                    selectedTimes.push(val);
+                    selectedTimes.sort();
+                }
+                // Зафіксували поточний слот, наступний вибір пікера створить новий слот
+                activePickerTime = null;
                 renderTimeTags();
             }
         });
@@ -214,18 +241,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.time-preset-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
             const t = e.currentTarget.dataset.time;
-            if (t) {
-                if (selectedTimes.includes(t)) {
-                    if (selectedTimes.length > 1) {
-                        selectedTimes = selectedTimes.filter(item => item !== t);
-                    }
+            if (!t) return;
+
+            if (selectedTimes.includes(t)) {
+                if (selectedTimes.length > 1) {
+                    selectedTimes = selectedTimes.filter(item => item !== t);
+                    if (activePickerTime === t) activePickerTime = selectedTimes[0] || null;
+                }
+            } else {
+                if (activePickerTime && selectedTimes.includes(activePickerTime) && selectedTimes.length === 1) {
+                    selectedTimes = [t];
                 } else {
                     selectedTimes.push(t);
                     selectedTimes.sort();
                 }
-                if (timePicker) timePicker.value = t;
-                renderTimeTags();
+                activePickerTime = t;
             }
+            if (timePicker) timePicker.value = t;
+            const addBtn = document.getElementById('add-time-btn');
+            if (addBtn) addBtn.textContent = `➕ Додати ${t}`;
+            renderTimeTags();
         });
     });
 
@@ -445,6 +480,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editDescEl) editDescEl.value = task.description;
 
         editSelectedTimes = [...task.times];
+        editActivePickerTime = task.times[0] || '09:00';
+        const editTimePicker = document.getElementById('edit-task-time-picker');
+        if (editTimePicker) editTimePicker.value = editActivePickerTime;
+
         renderEditTimeTags();
 
         editSelectedInterval = task.interval_minutes || 0;
@@ -485,9 +524,14 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 const timeToRemove = e.currentTarget.dataset.time;
                 editSelectedTimes = editSelectedTimes.filter(t => t !== timeToRemove);
+                if (editActivePickerTime === timeToRemove) {
+                    editActivePickerTime = editSelectedTimes[0] || null;
+                }
                 if (editSelectedTimes.length === 0) {
                     const picker = document.getElementById('edit-task-time-picker');
-                    editSelectedTimes = [picker ? picker.value || '09:00' : '09:00'];
+                    const fallback = picker ? picker.value || '09:00' : '09:00';
+                    editSelectedTimes = [fallback];
+                    editActivePickerTime = fallback;
                 }
                 renderEditTimeTags();
             });
@@ -499,9 +543,12 @@ document.addEventListener('DOMContentLoaded', () => {
         editAddTimeBtn.addEventListener('click', () => {
             const picker = document.getElementById('edit-task-time-picker');
             const val = picker ? picker.value : null;
-            if (val && !editSelectedTimes.includes(val)) {
-                editSelectedTimes.push(val);
-                editSelectedTimes.sort();
+            if (val) {
+                if (!editSelectedTimes.includes(val)) {
+                    editSelectedTimes.push(val);
+                    editSelectedTimes.sort();
+                }
+                editActivePickerTime = null;
                 renderEditTimeTags();
             }
         });
@@ -509,12 +556,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const editTimePicker = document.getElementById('edit-task-time-picker');
     if (editTimePicker) {
-        editTimePicker.addEventListener('change', (e) => {
-            const val = e.target.value;
-            const editBtn = document.getElementById('edit-add-time-btn');
-            if (editBtn && val) {
-                editBtn.textContent = `➕ Додати ${val}`;
-            }
+        ['input', 'change'].forEach(evt => {
+            editTimePicker.addEventListener(evt, (e) => {
+                const val = e.target.value;
+                if (!val) return;
+
+                const editBtn = document.getElementById('edit-add-time-btn');
+                if (editBtn) editBtn.textContent = `➕ Додати ${val}`;
+
+                if (editActivePickerTime && editSelectedTimes.includes(editActivePickerTime)) {
+                    const idx = editSelectedTimes.indexOf(editActivePickerTime);
+                    editSelectedTimes[idx] = val;
+                } else {
+                    if (!editSelectedTimes.includes(val)) {
+                        editSelectedTimes.push(val);
+                    }
+                }
+
+                editActivePickerTime = val;
+                editSelectedTimes.sort();
+                renderEditTimeTags();
+            });
         });
     }
 
@@ -522,18 +584,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.edit-time-preset-chip').forEach(chip => {
         chip.addEventListener('click', (e) => {
             const t = e.currentTarget.dataset.time;
-            if (t) {
-                if (editSelectedTimes.includes(t)) {
-                    if (editSelectedTimes.length > 1) {
-                        editSelectedTimes = editSelectedTimes.filter(item => item !== t);
-                    }
+            if (!t) return;
+
+            if (editSelectedTimes.includes(t)) {
+                if (editSelectedTimes.length > 1) {
+                    editSelectedTimes = editSelectedTimes.filter(item => item !== t);
+                    if (editActivePickerTime === t) editActivePickerTime = editSelectedTimes[0] || null;
+                }
+            } else {
+                if (editActivePickerTime && editSelectedTimes.includes(editActivePickerTime) && editSelectedTimes.length === 1) {
+                    editSelectedTimes = [t];
                 } else {
                     editSelectedTimes.push(t);
                     editSelectedTimes.sort();
                 }
-                if (editTimePicker) editTimePicker.value = t;
-                renderEditTimeTags();
+                editActivePickerTime = t;
             }
+            if (editTimePicker) editTimePicker.value = t;
+            const editBtn = document.getElementById('edit-add-time-btn');
+            if (editBtn) editBtn.textContent = `➕ Додати ${t}`;
+            renderEditTimeTags();
         });
     });
 
