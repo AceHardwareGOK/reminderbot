@@ -363,21 +363,31 @@ body {
 }
 
 .task-card {
+    position: relative;
     background: var(--secondary-bg);
     border-radius: var(--border-radius);
-    padding: 14px 16px;
+    padding: 14px 16px 14px 20px;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    border-left: 4px solid var(--button-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
     animation: fadeInUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) both;
 }
 
+.task-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 5px;
+    background: var(--button-color);
+}
 
-.task-card.one-time {
-    border-left-color: var(--accent-color);
+.task-card.one-time::before {
+    background: var(--accent-color);
 }
 
 .task-header {
@@ -1240,22 +1250,36 @@ body {
 }
 
 .notification-card {
+    position: relative;
     background: var(--secondary-bg);
     border-radius: var(--border-radius);
-    padding: 14px 16px;
+    padding: 14px 16px 14px 20px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border-left: 4px solid var(--hint-color);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
     transition: all 0.2s ease;
     animation: fadeInUp 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) both;
 }
 
+.notification-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 5px;
+    background: var(--hint-color);
+}
+
 .notification-card.unread {
-    border-left-color: var(--button-color);
     background: linear-gradient(135deg, var(--secondary-bg) 0%, rgba(82, 136, 193, 0.08) 100%);
     box-shadow: 0 4px 12px rgba(82, 136, 193, 0.15);
+}
+
+.notification-card.unread::before {
+    background: var(--button-color);
 }
 
 .notif-header {
