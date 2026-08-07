@@ -621,8 +621,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            const isNoInterval = !task.interval_minutes || task.interval_minutes === 0;
             const isDue = !isFutureTask && task.time_statuses && task.time_statuses.some(st => st.status === 'past' || st.status === 'completed' || (st.status === 'next' && st.time <= nowHM));
-            const snoozeBtnLabel = isDue ? '🔁 Повторити' : '⏸ Відкласти';
+            const snoozeBtnLabel = (isDue && isNoInterval) ? '🔁 Повторити' : '⏸ Відкласти';
 
             let timeSlotsHtml = '';
             if (task.time_statuses && task.time_statuses.length > 0) {
@@ -1586,13 +1587,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const isCompleted = notif.is_completed || false;
             const timeStr = notif.created_at ? notif.created_at.replace('T', ' ').substring(0, 16) : '';
 
+            const task = tasks.find(t => t.task_id === parseInt(notif.task_id));
+            const isNoInterval = !task || !task.interval_minutes || task.interval_minutes === 0;
+            const snoozeBtnLabel = isNoInterval ? '🔁 Повторити' : '⏸ Відкласти';
+
             let actionsHtml = '';
             if (isCompleted) {
                 actionsHtml = `<div class="notif-status-done">✅ Виконано</div>`;
             } else {
                 actionsHtml = `
                     <button class="btn-small btn-success notif-done-btn" data-id="${notif.id}" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
-                    <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">🔁 Повторити</button>
+                    <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}" data-is-no-interval="${isNoInterval}">${snoozeBtnLabel}</button>
                 `;
             }
 
@@ -1639,8 +1644,9 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 selectedSnoozeTaskId = parseInt(btn.dataset.taskId);
+                const isNoInterval = btn.dataset.isNoInterval === 'true';
                 const titleEl = document.getElementById('snooze-modal-title');
-                if (titleEl) titleEl.textContent = `🔁 Повторити завдання #${selectedSnoozeTaskId}`;
+                if (titleEl) titleEl.textContent = isNoInterval ? `🔁 Повторити завдання #${selectedSnoozeTaskId}` : `⏸ Відкласти завдання #${selectedSnoozeTaskId}`;
                 if (snoozeModal) snoozeModal.classList.remove('hidden');
             });
         });

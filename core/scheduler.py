@@ -405,6 +405,7 @@ class ReminderManager:
         
         reminder_code = reminder_time.replace(':', '')
         
+        snooze_label = "⏸ Відкласти" if task.get('interval_minutes', 0) > 0 else "🔁 Повторити"
         buttons = [
             InlineKeyboardButton(
                 "✅ Готово", 
@@ -412,7 +413,7 @@ class ReminderManager:
                 api_kwargs={'style': 'success'}
             ),
             InlineKeyboardButton(
-                "🔁 Повторити", 
+                snooze_label, 
                 callback_data=f"snooze_{task['task_id']}_{reminder_code}",
                 api_kwargs={'style': 'primary'}
             )
