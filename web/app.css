@@ -382,8 +382,12 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 5px;
+    width: 8px;
     background: var(--button-color);
+    border-top-left-radius: var(--border-radius);
+    border-bottom-left-radius: var(--border-radius);
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
 }
 
 .task-card.one-time::before {
@@ -1269,8 +1273,12 @@ body {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 5px;
+    width: 8px;
     background: var(--hint-color);
+    border-top-left-radius: var(--border-radius);
+    border-bottom-left-radius: var(--border-radius);
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
 }
 
 .notification-card.unread {
