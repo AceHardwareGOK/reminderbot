@@ -218,6 +218,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const val = e.target.value;
                 if (!val) return;
 
+                const existingIdx = selectedTimes.indexOf(val);
+                if (existingIdx !== -1 && existingIdx !== activeTimeIndex) {
+                    showToast('⚠️ Цей час вже додано у списку!');
+                    if (timePicker) timePicker.value = selectedTimes[activeTimeIndex] || '09:00';
+                    return;
+                }
+
                 if (activeTimeIndex >= 0 && activeTimeIndex < selectedTimes.length) {
                     selectedTimes[activeTimeIndex] = val;
                 } else {
@@ -226,6 +233,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 renderTimeTags();
+            });
+        });
+    }
+
+    if (datePicker) {
+        ['input', 'change'].forEach(evt => {
+            datePicker.addEventListener(evt, (e) => {
+                const val = e.target.value;
+                if (!val) return;
+
+                const existingIdx = selectedDates.indexOf(val);
+                if (existingIdx !== -1 && existingIdx !== activeDateIndex) {
+                    showToast('⚠️ Цю дату вже додано у списку!');
+                    if (datePicker) datePicker.value = selectedDates[activeDateIndex] || getLocalDateISO();
+                    return;
+                }
+
+                if (activeDateIndex >= 0 && activeDateIndex < selectedDates.length) {
+                    selectedDates[activeDateIndex] = val;
+                } else {
+                    selectedDates[0] = val;
+                    activeDateIndex = 0;
+                }
+
+                renderDateTags();
             });
         });
     }
@@ -288,10 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (addDateBtn) {
         addDateBtn.addEventListener('click', () => {
             const curVal = datePicker ? datePicker.value : getLocalDateISO();
-            if (!selectedDates.includes(curVal)) {
-                selectedDates.push(curVal);
-                activeDateIndex = selectedDates.length - 1;
+            if (selectedDates.includes(curVal)) {
+                showToast('⚠️ Цю дату вже додано!');
+                return;
             }
+            selectedDates.push(curVal);
+            activeDateIndex = selectedDates.length - 1;
             renderDateTags();
         });
     }
@@ -370,6 +404,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     nextTime = `${String(h).padStart(2, '0')}:${m}`;
                     guard++;
                 }
+            }
+
+            if (selectedTimes.includes(nextTime)) {
+                showToast('⚠️ Усі доступні часові слоти вже додано!');
+                return;
             }
 
             selectedTimes.push(nextTime);
@@ -736,11 +775,39 @@ document.addEventListener('DOMContentLoaded', () => {
         editAddDateBtn.addEventListener('click', () => {
             const editDatePicker = document.getElementById('edit-task-date-picker');
             const curVal = editDatePicker ? editDatePicker.value : getLocalDateISO();
-            if (!editSelectedDates.includes(curVal)) {
-                editSelectedDates.push(curVal);
-                editActiveDateIndex = editSelectedDates.length - 1;
+            if (editSelectedDates.includes(curVal)) {
+                showToast('⚠️ Цю дату вже додано!');
+                return;
             }
+            editSelectedDates.push(curVal);
+            editActiveDateIndex = editSelectedDates.length - 1;
             renderEditDateTags();
+        });
+    }
+
+    const editDatePickerEl = document.getElementById('edit-task-date-picker');
+    if (editDatePickerEl) {
+        ['input', 'change'].forEach(evt => {
+            editDatePickerEl.addEventListener(evt, (e) => {
+                const val = e.target.value;
+                if (!val) return;
+
+                const existingIdx = editSelectedDates.indexOf(val);
+                if (existingIdx !== -1 && existingIdx !== editActiveDateIndex) {
+                    showToast('⚠️ Цю дату вже додано у списку!');
+                    if (editDatePickerEl) editDatePickerEl.value = editSelectedDates[editActiveDateIndex] || getLocalDateISO();
+                    return;
+                }
+
+                if (editActiveDateIndex >= 0 && editActiveDateIndex < editSelectedDates.length) {
+                    editSelectedDates[editActiveDateIndex] = val;
+                } else {
+                    editSelectedDates[0] = val;
+                    editActiveDateIndex = 0;
+                }
+
+                renderEditDateTags();
+            });
         });
     }
 
@@ -817,6 +884,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     nextTime = `${String(h).padStart(2, '0')}:${m}`;
                     guard++;
                 }
+            }
+
+            if (editSelectedTimes.includes(nextTime)) {
+                showToast('⚠️ Усі доступні часові слоти вже додано!');
+                return;
             }
 
             editSelectedTimes.push(nextTime);
