@@ -639,6 +639,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${icon} ${st.time} <span class="time-slot-label">(${st.label})</span>
                     </span>`;
                 }).join('');
+            } else {
+                timeSlotsHtml = (task.times || []).map(t => `<span class="time-slot-chip upcoming">🕒 ${t}</span>`).join('');
+            }
+
             let snoozeBadgeHtml = '';
             if (task.is_snoozed && task.snooze_display) {
                 snoozeBadgeHtml = `
