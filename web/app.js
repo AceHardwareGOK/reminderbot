@@ -377,9 +377,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.querySelectorAll('.complete-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
-                const taskId = e.currentTarget.dataset.id;
-                await apiRequest(`/api/tasks/${taskId}/complete`, { method: 'POST', body: JSON.stringify({}) });
-                showToast('✅ Нагадування відмічено виконаним!');
+                const taskId = parseInt(e.currentTarget.dataset.id);
+                const task = tasks.find(t => t.task_id === taskId);
+                
+                let instId = null;
+                if (task && task.time_statuses) {
+                    const activeSlot = task.time_statuses.find(st => st.status === 'next') || 
+                                       task.time_statuses.find(st => st.status === 'past') ||
+                                       task.time_statuses.find(st => st.status !== 'completed');
+                    if (activeSlot) {
+                        const tClean = activeSlot.time.replace(':', '');
+                        instId = `${taskId}_${tClean}`;
+                    }
+                }
+
+                await apiRequest(`/api/tasks/${taskId}/complete`, { 
+                    method: 'POST', 
+                    body: JSON.stringify(instId ? { reminder_instance_id: instId } : {}) 
+                });
+                showToast('✅ Слот часу відмічено виконаним!');
                 loadTasks();
             });
         });

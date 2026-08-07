@@ -238,7 +238,11 @@ async def complete_task_instance(
     reminder_instance_id: Optional[str] = Body(None, embed=True),
     user_id: int = Depends(get_current_user)
 ):
-    """Відмітити завдання виконаним з гарантованим видаленням одноразових завдань"""
+    """Відмітити конкретний слот часу завдання або найближчий актуальний слот"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from core.config import TIMEZONE
+
     task = await db_manager.get_task(task_id)
     if not task or task["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -247,23 +251,55 @@ async def complete_task_instance(
     times = task.get("times", [])
     one_time_date = task.get("one_time_date", "")
 
-    # Збираємо всі можливі варіанти ідентифікаторів екземпляра
+    target_time_clean = None
+    if reminder_instance_id:
+        parts = reminder_instance_id.split("_")
+        if len(parts) >= 2:
+            target_time_clean = parts[-1]
+
+    if not target_time_clean and times:
+        now = datetime.now(ZoneInfo(TIMEZONE))
+        now_hm = now.strftime('%H:%M')
+        
+        seen_insts = set()
+        async with db_manager._get_connection() as conn:
+            cursor = await conn.execute('''
+                SELECT reminder_instance_id FROM completed_reminders 
+                WHERE user_id = ? AND task_id = ?
+            ''', (user_id, task_id))
+            rows = await cursor.fetchall()
+            for r in rows:
+                seen_insts.add(r['reminder_instance_id'])
+
+        sorted_times = sorted(times)
+        chosen_time = None
+        
+        for t in sorted_times:
+            t_clean = t.replace(":", "")
+            inst_id_simple = f"{task_id}_{t_clean}"
+            if inst_id_simple not in seen_insts:
+                chosen_time = t
+                if t > now_hm:
+                    break
+        
+        if not chosen_time:
+            chosen_time = sorted_times[0]
+            
+        target_time_clean = chosen_time.replace(":", "")
+        reminder_instance_id = f"{task_id}_{target_time_clean}"
+
     rem_inst_ids = []
     if reminder_instance_id:
         rem_inst_ids.append(reminder_instance_id)
 
-    for t in times:
-        t_clean = t.replace(":", "")
-        rem_inst_ids.append(f"{task_id}_{t_clean}")
+    if target_time_clean:
+        rem_inst_ids.append(f"{task_id}_{target_time_clean}")
         if is_one_time and one_time_date:
-            for d in one_time_date.split(","):
+            for d in str(one_time_date).split(","):
                 d_clean = d.strip()[:10].replace("-", "")
                 if d_clean:
-                    rem_inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
-    
-    rem_inst_ids.append(f"inst_{task_id}")
+                    rem_inst_ids.append(f"{task_id}_{d_clean}_{target_time_clean}")
 
-    # 1. Позначаємо виконаним для всіх варіацій ключа
     for inst_id in set(rem_inst_ids):
         await db_manager.mark_reminder_completed(user_id, task_id, inst_id)
         if reminder_manager:
@@ -272,15 +308,19 @@ async def complete_task_instance(
             except Exception:
                 pass
 
-    # 2. Якщо це одноразове завдання — знімаємо з розкладу та БЕЗУМОВНО видаляємо з БД
     if is_one_time:
+        has_remaining = True
         if reminder_manager:
-            try:
-                reminder_manager.cancel_task(user_id, task_id)
-            except Exception:
-                pass
-        await db_manager.delete_task(task_id)
-        return {"status": "ok", "completed": True, "deleted": True}
+            has_remaining = await reminder_manager.has_remaining_one_time_slots(user_id, task)
+            
+        if not has_remaining:
+            if reminder_manager:
+                try:
+                    reminder_manager.cancel_task(user_id, task_id)
+                except Exception:
+                    pass
+            await db_manager.delete_task(task_id)
+            return {"status": "ok", "completed": True, "deleted": True}
 
     return {"status": "ok", "completed": True, "deleted": False}
 

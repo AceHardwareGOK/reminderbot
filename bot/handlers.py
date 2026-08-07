@@ -691,20 +691,19 @@ class BotHandlers:
             await query.answer("⚠️ Завдання не знайдено.", show_alert=True)
             return
 
-        # Mark as completed for all possible key variations
-        times = task.get("times", [])
+        # Mark as completed only for this specific reminder instance and time slot
         is_one_time = task.get("is_one_time", False)
         one_time_date = task.get("one_time_date", "")
         
-        rem_inst_ids = [rem_inst_id, f"inst_{task_id}"]
-        for t in times:
-            t_clean = t.replace(":", "")
-            rem_inst_ids.append(f"{task_id}_{t_clean}")
+        target_time_clean = time_str.replace(":", "") if time_str else None
+        rem_inst_ids = [rem_inst_id]
+        if target_time_clean:
+            rem_inst_ids.append(f"{task_id}_{target_time_clean}")
             if is_one_time and one_time_date:
-                for d in one_time_date.split(","):
+                for d in str(one_time_date).split(","):
                     d_clean = d.strip()[:10].replace("-", "")
                     if d_clean:
-                        rem_inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+                        rem_inst_ids.append(f"{task_id}_{d_clean}_{target_time_clean}")
 
         for inst_id in set(rem_inst_ids):
             await self.db.mark_reminder_completed(user_id, task_id, inst_id)
@@ -796,20 +795,19 @@ class BotHandlers:
         self.reminder_manager.cancel_repeat_tasks(reminder_instance_id)
 
         
-        # Mark as completed for all possible key variations
-        times = task.get("times", [])
+        # Mark as completed only for this specific reminder instance and time slot
         is_one_time = task.get("is_one_time", False)
         one_time_date = task.get("one_time_date", "")
         
-        rem_inst_ids = [reminder_instance_id, f"inst_{task_id}"]
-        for t in times:
-            t_clean = t.replace(":", "")
-            rem_inst_ids.append(f"{task_id}_{t_clean}")
+        target_time_clean = time_part
+        rem_inst_ids = [reminder_instance_id]
+        if target_time_clean:
+            rem_inst_ids.append(f"{task_id}_{target_time_clean}")
             if is_one_time and one_time_date:
-                for d in one_time_date.split(","):
+                for d in str(one_time_date).split(","):
                     d_clean = d.strip()[:10].replace("-", "")
                     if d_clean:
-                        rem_inst_ids.append(f"{task_id}_{d_clean}_{t_clean}")
+                        rem_inst_ids.append(f"{task_id}_{d_clean}_{target_time_clean}")
 
         for inst_id in set(rem_inst_ids):
             await self.db.mark_reminder_completed(user_id, task_id, inst_id)
