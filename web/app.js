@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initData = tg?.initData || '';
     
     let tasks = [];
-    let currentFilter = 'all';
+    let currentFilter = 'today';
     let currentCalDate = new Date();
     let selectedSnoozeTaskId = null;
 
@@ -1140,7 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Notifications Logic ---
     let notifications = [];
-    let currentNotifFilter = 'all';
+    let currentNotifFilter = 'today';
 
     async function loadNotifications() {
         try {

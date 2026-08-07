@@ -9,7 +9,7 @@
     <meta http-equiv="Expires" content="0">
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="stylesheet" href="app.css?v=1.0.15">
+    <link rel="stylesheet" href="app.css?v=1.0.16">
 </head>
 <body>
     <div id="app">
@@ -45,8 +45,8 @@
             <!-- Вкладка 1: Список завдань -->
             <section id="tab-list" class="tab-pane active">
                 <div class="filter-bar">
-                    <button class="filter-chip active" data-filter="all">Всі</button>
-                    <button class="filter-chip" data-filter="today">Сьогодні</button>
+                    <button class="filter-chip" data-filter="all">Всі</button>
+                    <button class="filter-chip active" data-filter="today">Сьогодні</button>
                     <button class="filter-chip" data-filter="daily">Щоденні</button>
                     <button class="filter-chip" data-filter="onetime">Одноразові</button>
                 </div>
@@ -80,8 +80,8 @@
             <section id="tab-notifications" class="tab-pane">
                 <div class="notifications-header-bar">
                     <div class="filter-bar">
-                        <button class="notif-filter-chip active" data-filter="all">Всі</button>
-                        <button class="notif-filter-chip" data-filter="today">Сьогодні</button>
+                        <button class="notif-filter-chip" data-filter="all">Всі</button>
+                        <button class="notif-filter-chip active" data-filter="today">Сьогодні</button>
                     </div>
                     <div class="notif-actions">
                         <button id="clear-notifs-btn" class="btn-text-action danger-text" title="Очистити історію">🗑 Очистити</button>
@@ -297,6 +297,6 @@
         <div id="toast" class="toast hidden"></div>
     </div>
 
-    <script src="app.js?v=1.0.15"></script>
+    <script src="app.js?v=1.0.16"></script>
 </body>
 </html>
