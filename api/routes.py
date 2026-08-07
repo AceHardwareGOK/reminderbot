@@ -426,11 +426,22 @@ async def get_notifications(
     limit: int = 50,
     user_id: int = Depends(get_current_user)
 ):
-    """Отримати сповіщення з підтяжкою статусу виконання та кількістю непрочитаних"""
+    """Отримати сповіщення з точним розпізнаванням статусу виконання"""
     items = await db_manager.get_notifications(user_id=user_id, limit=limit)
     unread_count = await db_manager.get_unread_notifications_count(user_id=user_id)
 
-    # Збираємо всі виконані екземпляри нагадувань користувача
+    # 1. Збираємо всі існуючі task_id користувача та їх прапорець is_completed
+    existing_tasks = {}
+    async with db_manager._get_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT task_id, is_completed FROM tasks WHERE user_id = ?",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+        for r in rows:
+            existing_tasks[r['task_id']] = bool(r['is_completed'])
+
+    # 2. Збираємо всі виконані екземпляри нагадувань з completed_reminders
     completed_set = set()
     async with db_manager._get_connection() as conn:
         cursor = await conn.execute(
@@ -445,14 +456,20 @@ async def get_notifications(
         t_id = item.get('task_id')
         r_inst = str(item.get('reminder_instance_id') or '')
         
-        # Перевірка точного або часткового співпадіння ключа виконання
+        # Якщо завдання вже відсутнє в існуючих tasks (було одноразовим і автовидалилося після виконання)
+        # або в tasks воно позначене is_completed = True
+        if t_id not in existing_tasks or existing_tasks.get(t_id) is True:
+            item['is_completed'] = True
+            continue
+
+        # Інакше перевіряємо completed_reminders (точний чи нормалізований збіг часу)
         is_done = (t_id, r_inst) in completed_set
         if not is_done and r_inst:
-            # Також звіримо по частині часу HH:MM
-            parts = r_inst.split('_')
-            time_part = parts[0] if len(parts) > 0 else ''
+            # Нормалізуємо час без двокрапок (наприклад "09:00" -> "0900")
+            time_clean = r_inst.split('_')[0].replace(':', '')
             for (c_task_id, c_inst_id) in completed_set:
-                if c_task_id == t_id and (time_part in c_inst_id or c_inst_id in r_inst):
+                c_inst_clean = c_inst_id.replace(':', '')
+                if c_task_id == t_id and (time_clean in c_inst_clean or c_inst_clean in r_inst.replace(':', '')):
                     is_done = True
                     break
 

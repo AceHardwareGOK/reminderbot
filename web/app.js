@@ -377,6 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (progressBar) progressBar.style.width = `${data.progress_percent || 0}%`;
 
             renderTaskList();
+            loadNotifications();
         } catch (err) {
             console.error('loadTasks error:', err);
         }
