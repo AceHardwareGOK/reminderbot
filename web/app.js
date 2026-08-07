@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === activeTimeIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `🕒 ${t} <span class="remove-tag" data-index="${idx}">❌</span>`;
+            tag.innerHTML = `🕒 ${t} <button type="button" class="remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">❌</button>`;
 
             // Тап на тіло тегу підключає колесо часу до нього
             tag.addEventListener('click', (e) => {
@@ -257,7 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Підсвічуємо активні пресети
         document.querySelectorAll('.time-preset-chip').forEach(chip => {
             const t = chip.dataset.time;
-            chip.classList.toggle('active', selectedTimes.includes(t));
+            const isAct = selectedTimes.includes(t);
+            chip.classList.toggle('active', isAct);
+            chip.setAttribute('aria-pressed', isAct ? 'true' : 'false');
         });
 
         container.querySelectorAll('.remove-tag').forEach(btn => {
@@ -598,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tag = document.createElement('span');
             const isActive = (idx === editActiveTimeIndex);
             tag.className = `tag-item ${isActive ? 'active-tag' : ''}`;
-            tag.innerHTML = `🕒 ${t} <span class="edit-remove-tag" data-index="${idx}">❌</span>`;
+            tag.innerHTML = `🕒 ${t} <button type="button" class="edit-remove-tag" data-index="${idx}" aria-label="Видалити час ${t}">❌</button>`;
 
             tag.addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-remove-tag')) return;

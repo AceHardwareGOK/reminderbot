@@ -678,11 +678,24 @@ body {
     pointer-events: none;
 }
 
-.quick-preset-chips {
+.custom-picker, .tag-item, .time-slot-chip, .notif-time {
+    font-variant-numeric: tabular-nums;
+}
+
+.quick-preset-chips, .filter-bar, .days-chips, .interval-chips {
     display: flex;
     gap: 6px;
     margin-top: 6px;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.quick-preset-chips::-webkit-scrollbar,
+.filter-bar::-webkit-scrollbar,
+.days-chips::-webkit-scrollbar,
+.interval-chips::-webkit-scrollbar {
+    display: none;
 }
 
 .preset-chip, .time-preset-chip {
@@ -732,14 +745,22 @@ body {
     transform: scale(1.03);
 }
 
-.tag-item .remove-tag {
-    cursor: pointer;
+.tag-item .remove-tag,
+.tag-item .edit-remove-tag {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: inherit;
     font-size: 11px;
+    cursor: pointer;
     opacity: 0.7;
-    padding: 2px;
+    padding: 0 2px;
+    line-height: 1;
+    transition: opacity 0.15s ease;
 }
 
-.tag-item .remove-tag:hover {
+.tag-item .remove-tag:hover,
+.tag-item .edit-remove-tag:hover {
     opacity: 1;
 }
 
