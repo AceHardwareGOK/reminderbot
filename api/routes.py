@@ -320,6 +320,17 @@ async def complete_task_instance(
             except Exception:
                 pass
 
+    # Автоматично позначаємо пов'язані сповіщення прочитаними вnotifications_log
+    try:
+        async with db_manager._get_connection() as conn:
+            await conn.execute(
+                "UPDATE notifications_log SET is_read = 1 WHERE user_id = ? AND task_id = ?",
+                (user_id, task_id)
+            )
+            await conn.commit()
+    except Exception:
+        pass
+
     if is_one_time:
         has_remaining = True
         if reminder_manager:
@@ -415,9 +426,38 @@ async def get_notifications(
     limit: int = 50,
     user_id: int = Depends(get_current_user)
 ):
-    """Отримати сповіщення та кількість непрочитаних"""
+    """Отримати сповіщення з підтяжкою статусу виконання та кількістю непрочитаних"""
     items = await db_manager.get_notifications(user_id=user_id, limit=limit)
     unread_count = await db_manager.get_unread_notifications_count(user_id=user_id)
+
+    # Збираємо всі виконані екземпляри нагадувань користувача
+    completed_set = set()
+    async with db_manager._get_connection() as conn:
+        cursor = await conn.execute(
+            "SELECT task_id, reminder_instance_id FROM completed_reminders WHERE user_id = ?",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+        for r in rows:
+            completed_set.add((r['task_id'], str(r['reminder_instance_id'])))
+
+    for item in items:
+        t_id = item.get('task_id')
+        r_inst = str(item.get('reminder_instance_id') or '')
+        
+        # Перевірка точного або часткового співпадіння ключа виконання
+        is_done = (t_id, r_inst) in completed_set
+        if not is_done and r_inst:
+            # Також звіримо по частині часу HH:MM
+            parts = r_inst.split('_')
+            time_part = parts[0] if len(parts) > 0 else ''
+            for (c_task_id, c_inst_id) in completed_set:
+                if c_task_id == t_id and (time_part in c_inst_id or c_inst_id in r_inst):
+                    is_done = True
+                    break
+
+        item['is_completed'] = is_done
+
     return {
         "status": "ok",
         "notifications": items,

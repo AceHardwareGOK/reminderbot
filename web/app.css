@@ -1256,6 +1256,30 @@ body {
     background: linear-gradient(135deg, #ffffff 0%, rgba(43, 115, 210, 0.08) 100%);
 }
 
+.notif-status-done {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(81, 207, 102, 0.15);
+    color: #51cf66;
+    border: 1px solid rgba(81, 207, 102, 0.3);
+}
+
+.notification-card.completed-card {
+    opacity: 0.75;
+    border-left-color: var(--success-color);
+}
+
+[data-theme="light"] .notif-status-done {
+    background: rgba(46, 125, 50, 0.12);
+    color: #2e7d32;
+    border-color: rgba(46, 125, 50, 0.25);
+}
+
 /* Toast */
 .toast {
     position: fixed;

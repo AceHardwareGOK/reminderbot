@@ -1157,21 +1157,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = filtered.map(notif => {
             const isUnread = !notif.is_read;
+            const isCompleted = notif.is_completed || false;
             const timeStr = notif.created_at ? notif.created_at.replace('T', ' ').substring(0, 16) : '';
 
+            let actionsHtml = '';
+            if (isCompleted) {
+                actionsHtml = `<div class="notif-status-done">✅ Виконано</div>`;
+            } else {
+                actionsHtml = `
+                    ${isUnread ? `<button class="btn-small btn-secondary mark-read-btn" data-id="${notif.id}">Позначити прочитаним</button>` : ''}
+                    <button class="btn-small btn-success notif-done-btn" data-id="${notif.id}" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
+                    <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">⏸ Відкласти</button>
+                `;
+            }
+
             return `
-                <div class="notification-card ${isUnread ? 'unread' : ''}" data-id="${notif.id}">
+                <div class="notification-card ${isUnread ? 'unread' : ''} ${isCompleted ? 'completed-card' : ''}" data-id="${notif.id}">
                     <div class="notif-header">
                         <div class="notif-title">
-                            ${isUnread ? '🔵' : '⚪️'} ${escapeHtml(notif.title || 'Сповіщення')}
+                            ${isCompleted ? '✅' : (isUnread ? '🔵' : '⚪️')} ${escapeHtml(notif.title || 'Сповіщення')}
                         </div>
                         <span class="notif-time">${timeStr}</span>
                     </div>
                     <div class="notif-body">${escapeHtml(notif.message || '')}</div>
                     <div class="notif-card-actions">
-                        ${isUnread ? `<button class="btn-small btn-secondary mark-read-btn" data-id="${notif.id}">Позначити прочитаним</button>` : ''}
-                        <button class="btn-small btn-success notif-done-btn" data-task-id="${notif.task_id}" data-inst-id="${notif.reminder_instance_id}">✅ Готово</button>
-                        <button class="btn-small btn-primary notif-snooze-btn" data-task-id="${notif.task_id}">⏸ Відкласти</button>
+                        ${actionsHtml}
                     </div>
                 </div>
             `;
@@ -1197,6 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         container.querySelectorAll('.notif-done-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                const notifId = btn.dataset.id;
                 const taskId = btn.dataset.taskId;
                 const instId = btn.dataset.instId;
                 try {
@@ -1204,6 +1215,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         method: 'POST',
                         body: JSON.stringify({ reminder_instance_id: instId })
                     });
+                    if (notifId) {
+                        await apiRequest(`/api/notifications/${notifId}/read`, { method: 'POST' }).catch(() => {});
+                    }
                     showToast('✅ Нагадування виконано!');
                     loadTasks();
                     loadNotifications();
