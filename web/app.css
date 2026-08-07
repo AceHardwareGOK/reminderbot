@@ -1402,14 +1402,19 @@ body {
 .custom-snooze-box .interval-picker-row {
     display: flex;
     gap: 8px;
+    align-items: center;
 }
 
-.custom-snooze-box .interval-picker-row input {
-    flex: 1;
+.custom-snooze-box .interval-picker-row input.custom-picker {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
 }
 
-.custom-snooze-box .btn-small {
+.custom-snooze-box .interval-picker-row button.btn-small {
+    flex: 0 0 auto;
+    width: auto;
     white-space: nowrap;
-    padding: 10px 16px;
+    padding: 10px 18px;
     font-size: 13px;
 }
